@@ -368,6 +368,38 @@ Run tests with:
 npm test
 ```
 
+## 📋 MCP Specification Versions
+
+This implementation is currently based on **MCP Specification 2025-03-26** with plans to upgrade to newer versions.
+
+### Current Status
+
+- ✅ **2025-03-26** - Fully implemented (current)
+- 📋 **2025-06-18** - Upgrade planned (latest stable)
+- 🔮 **2025-11-25** - Roadmap prepared (upcoming)
+
+### What's New in Each Version
+
+**2025-06-18 (Latest Stable):**
+- Structured tool output with schemas
+- Elicitation support (interactive tools)
+- Resource links
+- Enhanced OAuth/RFC 8707 security
+- Protocol version headers
+
+**2025-11-25 (Upcoming - Nov 25, 2025):**
+- Sampling (servers request LLM completions)
+- Multimodal support (images, audio, video)
+- Advanced agentic workflows
+- Registry & discovery
+- Compliance test suites
+
+### Documentation
+
+- 📖 [Complete Upgrade Plan](./MCP_UPGRADE_PLAN.md) - Detailed migration guide with code examples
+- 📋 [Quick Reference](./MCP_VERSIONS_QUICK_REF.md) - Version comparison and feature matrix
+- 🔗 [Official Changelog](https://modelcontextprotocol.io/specification/2025-06-18/changelog)
+
 ## 📚 Learn More
 
 - [MCP Specification](https://spec.modelcontextprotocol.io/)
