@@ -9,6 +9,7 @@ This reference implementation showcases:
 - **MCP Server**: A fully-featured server exposing tools, resources, and prompts
 - **MCP Client**: A client that connects to servers and interacts with their capabilities
 - **Simple Agent**: A demonstration of tool orchestration and workflow execution
+- **Intelligent Agent**: An AI-powered agent using Claude Haiku for smart tool selection 🧠
 
 ## 🏗️ Architecture
 
@@ -69,6 +70,34 @@ The agent will:
 2. Execute a multi-step workflow
 3. Demonstrate tool orchestration
 4. Perform custom tasks
+
+### Running the Intelligent Agent 🧠
+
+**NEW!** An AI-powered agent using Claude Haiku for intelligent tool selection:
+
+```bash
+# Set your Anthropic API key first
+export ANTHROPIC_API_KEY=your-api-key-here
+
+# Run the intelligent agent
+npm run dev:agent:intelligent
+
+# Or run the interactive example
+npm run example:interactive
+```
+
+The intelligent agent:
+1. Uses Claude Haiku to understand natural language queries
+2. Automatically selects and chains the right tools
+3. Handles complex multi-step workflows
+4. Provides natural language responses
+
+**Example queries:**
+- "What is 42 times 7?"
+- "Calculate 100 divided by 5, then add 30 to the result"
+- "Tell me the current time and server status"
+
+See [INTELLIGENT_AGENT.md](./INTELLIGENT_AGENT.md) for detailed documentation.
 
 ## 📦 Features
 

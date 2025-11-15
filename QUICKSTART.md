@@ -54,7 +54,34 @@ npm run agent
   - Time queries
   - Status checks
 
-### 3. Run the Server Standalone
+### 3. Test the Intelligent Agent 🧠 (NEW!)
+
+The intelligent agent uses Claude Haiku to understand natural language and make smart decisions:
+
+**First, set your API key:**
+```bash
+export ANTHROPIC_API_KEY=your-api-key-here
+```
+
+**Then run:**
+```bash
+npm run dev:agent:intelligent
+```
+
+**What it does:**
+- Uses Claude Haiku for natural language understanding
+- Automatically selects the right tools for each query
+- Handles complex multi-step workflows
+- Provides natural language responses
+
+**Try asking:**
+- "What is 42 times 7?"
+- "Calculate 100 divided by 5, then add 30"
+- "Tell me the server status and current time"
+
+See [INTELLIGENT_AGENT.md](./INTELLIGENT_AGENT.md) for full documentation.
+
+### 4. Run the Server Standalone
 
 You can also run just the server and interact with it manually:
 
@@ -64,7 +91,7 @@ npm run server
 
 The server will wait for JSON-RPC messages on stdin.
 
-### 4. Use the MCP Inspector
+### 5. Use the MCP Inspector
 
 The MCP Inspector provides an interactive UI for testing:
 

@@ -8,11 +8,14 @@
     "server": "node dist/server/index.js",
     "client": "node dist/client/index.js",
     "agent": "node dist/agent/simple-agent.js",
+    "agent:intelligent": "node dist/agent/intelligent-agent.js",
     "test": "vitest",
     "test:integration": "vitest run tests/integration.test.ts",
     "dev:server": "tsx src/server/index.ts",
     "dev:client": "tsx src/client/index.ts",
     "dev:agent": "tsx src/agent/simple-agent.ts",
+    "dev:agent:intelligent": "tsx src/agent/intelligent-agent.ts",
+    "example:interactive": "tsx src/examples/interactive-agent.ts",
     "inspector": "npx @modelcontextprotocol/inspector node dist/server/index.js"
   },
   "keywords": [
@@ -25,6 +28,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "zod": "^3.23.8"
   },
