@@ -15,7 +15,7 @@ This reference implementation showcases:
 
 ```
         ┌───────────────────────┐       ┌───────────────────────┐
-        │  Intelligent Agent 🧠 │       │    Simple Agent       │
+        │  Intelligent Agent    │       │    Simple Agent       │
         │  (Claude Haiku +      │       │  (Rule-based +        │
         │   MCP Client)         │       │   MCP Client)         │
         │                       │       │                       │
