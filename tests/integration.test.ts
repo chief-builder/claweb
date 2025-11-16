@@ -22,10 +22,36 @@ describe('MCP Integration Tests', () => {
     it('should list all available tools', async () => {
       const tools = await client.listTools();
 
-      expect(tools).toHaveLength(3);
+      expect(tools).toHaveLength(4);
       expect(tools.map((t) => t.name)).toContain('calculator');
       expect(tools.map((t) => t.name)).toContain('echo');
       expect(tools.map((t) => t.name)).toContain('get_current_time');
+      expect(tools.map((t) => t.name)).toContain('get_server_logs');
+    });
+
+    it('should include display names (title) for all tools', async () => {
+      const tools = await client.listTools();
+
+      // MCP 2025-06-18: All tools should have title field
+      tools.forEach((tool) => {
+        expect(tool).toHaveProperty('title');
+        expect(tool.title).toBeTruthy();
+      });
+
+      // Verify specific titles
+      const calculator = tools.find((t) => t.name === 'calculator');
+      expect(calculator?.title).toBe('Calculator');
+    });
+
+    it('should include output schemas for all tools', async () => {
+      const tools = await client.listTools();
+
+      // MCP 2025-06-18: All tools should have outputSchema field
+      tools.forEach((tool) => {
+        expect(tool).toHaveProperty('outputSchema');
+        expect(tool.outputSchema).toBeTruthy();
+        expect(tool.outputSchema).toHaveProperty('type');
+      });
     });
   });
 
@@ -40,6 +66,26 @@ describe('MCP Integration Tests', () => {
       expect(result.content).toHaveLength(1);
       const data = JSON.parse(result.content[0].text);
       expect(data.result).toBe(15);
+    });
+
+    it('should return structured output (MCP 2025-06-18)', async () => {
+      const result = await client.callTool('calculator', {
+        operation: 'add',
+        a: 10,
+        b: 5,
+      });
+
+      // MCP 2025-06-18: Verify structuredContent field
+      expect(result).toHaveProperty('structuredContent');
+      expect(result.structuredContent).toBeTruthy();
+
+      const structured = result.structuredContent;
+      expect(structured).toHaveProperty('operation', 'add');
+      expect(structured).toHaveProperty('a', 10);
+      expect(structured).toHaveProperty('b', 5);
+      expect(structured).toHaveProperty('result', 15);
+      expect(structured).toHaveProperty('expression', '10 + 5 = 15');
+      expect(structured).toHaveProperty('timestamp');
     });
 
     it('should subtract two numbers', async () => {
@@ -97,6 +143,19 @@ describe('MCP Integration Tests', () => {
       expect(result.content).toHaveLength(1);
       expect(result.content[0].text).toBe(testMessage);
     });
+
+    it('should return structured output with metadata', async () => {
+      const testMessage = 'Hello, MCP 2025-06-18!';
+      const result = await client.callTool('echo', {
+        message: testMessage,
+      });
+
+      // MCP 2025-06-18: Verify structuredContent
+      expect(result.structuredContent).toBeTruthy();
+      expect(result.structuredContent).toHaveProperty('message', testMessage);
+      expect(result.structuredContent).toHaveProperty('length', testMessage.length);
+      expect(result.structuredContent).toHaveProperty('timestamp');
+    });
   });
 
   describe('Current Time Tool', () => {
@@ -118,6 +177,72 @@ describe('MCP Integration Tests', () => {
       const data = JSON.parse(result.content[0].text);
       expect(data.timezone).toBe('America/New_York');
     });
+
+    it('should return structured output with all time fields', async () => {
+      const result = await client.callTool('get_current_time', {});
+
+      // MCP 2025-06-18: Verify structuredContent
+      expect(result.structuredContent).toBeTruthy();
+      expect(result.structuredContent).toHaveProperty('timestamp');
+      expect(result.structuredContent).toHaveProperty('timezone');
+      expect(result.structuredContent).toHaveProperty('formatted');
+      expect(result.structuredContent).toHaveProperty('unix');
+      expect(result.structuredContent).toHaveProperty('iso8601');
+    });
+  });
+
+  describe('Get Server Logs Tool', () => {
+    it('should return logs with resource links (MCP 2025-06-18)', async () => {
+      const result = await client.callTool('get_server_logs', {
+        logType: 'access',
+        lines: 100,
+      });
+
+      // Should have both text and resource content
+      expect(result.content.length).toBeGreaterThanOrEqual(1);
+
+      // Find the resource content
+      const resourceContent = result.content.find((c) => c.type === 'resource');
+      expect(resourceContent).toBeTruthy();
+
+      // MCP 2025-06-18: Verify resource link structure
+      if (resourceContent && resourceContent.type === 'resource') {
+        expect(resourceContent.resource).toBeTruthy();
+        expect(resourceContent.resource).toHaveProperty('uri');
+        expect(resourceContent.resource.uri).toContain('file:///var/log/mcp-server/access.log');
+        expect(resourceContent.resource).toHaveProperty('mimeType', 'text/plain');
+
+        // Verify metadata on resource
+        expect(resourceContent.resource).toHaveProperty('_meta');
+        expect(resourceContent.resource._meta).toHaveProperty('logType', 'access');
+        expect(resourceContent.resource._meta).toHaveProperty('lines', 100);
+      }
+    });
+
+    it('should support different log types', async () => {
+      const result = await client.callTool('get_server_logs', {
+        logType: 'error',
+      });
+
+      const resourceContent = result.content.find((c) => c.type === 'resource');
+      if (resourceContent && resourceContent.type === 'resource') {
+        expect(resourceContent.resource.uri).toContain('file:///var/log/mcp-server/error.log');
+      }
+    });
+
+    it('should return structured content with metadata', async () => {
+      const result = await client.callTool('get_server_logs', {
+        logType: 'access',
+        lines: 50,
+      });
+
+      // MCP 2025-06-18: Verify structuredContent
+      expect(result.structuredContent).toBeTruthy();
+      expect(result.structuredContent).toHaveProperty('logType', 'access');
+      expect(result.structuredContent).toHaveProperty('lines', 50);
+      expect(result.structuredContent).toHaveProperty('resourceUri');
+      expect(result.structuredContent).toHaveProperty('timestamp');
+    });
   });
 
   describe('Resource Discovery', () => {
@@ -135,19 +260,62 @@ describe('MCP Integration Tests', () => {
       const result = await client.readResource('config://server');
 
       expect(result.contents).toHaveLength(1);
-      const config = JSON.parse(result.contents[0].text || '{}');
+      const contentItem = result.contents[0];
+
+      // Type guard to access text property
+      const configText = 'text' in contentItem ? contentItem.text : '{}';
+      const config = JSON.parse(configText);
+
       expect(config.server.name).toBe('mcp-reference-server');
+      expect(config.server.version).toBe('2.0.0');
+      expect(config.server.protocolVersion).toBe('2025-06-18');
       expect(config.capabilities.tools).toBe(true);
+      expect(config.features.structuredOutput).toBe(true);
+      expect(config.features.resourceLinks).toBe(true);
+      expect(config.features.metadata).toBe(true);
+    });
+
+    it('should read server config with metadata (MCP 2025-06-18)', async () => {
+      const result = await client.readResource('config://server');
+
+      const contentItem = result.contents[0];
+
+      // MCP 2025-06-18: Verify _meta field
+      expect(contentItem).toHaveProperty('_meta');
+      if ('_meta' in contentItem) {
+        expect(contentItem._meta).toHaveProperty('generatedAt');
+        expect(contentItem._meta).toHaveProperty('version', '2.0.0');
+        expect(contentItem._meta).toHaveProperty('static', true);
+      }
     });
 
     it('should read server status resource', async () => {
       const result = await client.readResource('status://server');
 
       expect(result.contents).toHaveLength(1);
-      const status = JSON.parse(result.contents[0].text || '{}');
+      const contentItem = result.contents[0];
+
+      const statusText = 'text' in contentItem ? contentItem.text : '{}';
+      const status = JSON.parse(statusText);
+
       expect(status.status).toBe('running');
       expect(status).toHaveProperty('uptime');
       expect(status).toHaveProperty('memory');
+    });
+
+    it('should read server status with metadata', async () => {
+      const result = await client.readResource('status://server');
+
+      const contentItem = result.contents[0];
+
+      // MCP 2025-06-18: Verify _meta field
+      expect(contentItem).toHaveProperty('_meta');
+      if ('_meta' in contentItem) {
+        expect(contentItem._meta).toHaveProperty('generatedAt');
+        expect(contentItem._meta).toHaveProperty('version', '2.0.0');
+        expect(contentItem._meta).toHaveProperty('static', false);
+        expect(contentItem._meta).toHaveProperty('cacheControl', 'no-cache');
+      }
     });
   });
 });
