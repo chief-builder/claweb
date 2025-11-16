@@ -14,37 +14,39 @@ This reference implementation showcases:
 ## 🏗️ Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                  Intelligent Agent 🧠                 │
-│           (Claude Haiku + MCP Client)                │
-│  • Natural language understanding                    │
-│  • Smart tool selection                              │
-│  • Multi-step reasoning                              │
-└───────────────────┬──────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│                  Simple Agent                        │
-│           (Rule-based + MCP Client)                  │
-│  • Pre-defined workflows                             │
-│  • Pattern matching                                  │
-└───────────────────┬─────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│                  MCP Client                          │
-│  • Discovers server capabilities                     │
-│  • Invokes tools and reads resources                 │
-└───────────────────┬─────────────────────────────────┘
-                    │ stdio transport
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│                  MCP Server                          │
-│  • Tools: calculator, echo, time, logs               │
-│  • Resources: config, status                         │
-│  • Prompts: code_review                              │
-│  • MCP 2025-06-18 compliant ✅                       │
-└─────────────────────────────────────────────────────┘
+        ┌───────────────────────┐       ┌───────────────────────┐
+        │  Intelligent Agent 🧠 │       │    Simple Agent       │
+        │  (Claude Haiku +      │       │  (Rule-based +        │
+        │   MCP Client)         │       │   MCP Client)         │
+        │                       │       │                       │
+        │ • Natural language    │       │ • Pre-defined         │
+        │   understanding       │       │   workflows           │
+        │ • Smart tool          │       │ • Pattern             │
+        │   selection           │       │   matching            │
+        │ • Multi-step          │       │ • Demonstration       │
+        │   reasoning           │       │   purposes            │
+        └───────────┬───────────┘       └───────────┬───────────┘
+                    │                               │
+                    └───────────────┬───────────────┘
+                                    │
+                                    ▼
+                    ┌───────────────────────────────┐
+                    │        MCP Client             │
+                    │ • Discovers server            │
+                    │   capabilities                │
+                    │ • Invokes tools and           │
+                    │   reads resources             │
+                    └───────────────┬───────────────┘
+                                    │ stdio transport
+                                    ▼
+                    ┌───────────────────────────────┐
+                    │        MCP Server             │
+                    │ • Tools: calculator, echo,    │
+                    │   time, logs                  │
+                    │ • Resources: config, status   │
+                    │ • Prompts: code_review        │
+                    │ • MCP 2025-06-18 compliant ✅ │
+                    └───────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
