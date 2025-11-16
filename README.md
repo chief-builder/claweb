@@ -60,11 +60,26 @@ npm run build
 
 ### Running the Server
 
+**stdio transport (default):**
 ```bash
 npm run server
 ```
 
 The server will start and listen on stdio for MCP protocol messages.
+
+**HTTP transport (new! MCP 2025-06-18):** 🌐
+```bash
+npm run dev:server:http
+```
+
+The HTTP server will start with:
+- RESTful HTTP endpoints
+- Server-Sent Events (SSE) streaming
+- MCP-Protocol-Version headers
+- CORS support
+- Real-time client connections
+
+See [HTTP_TRANSPORT.md](./HTTP_TRANSPORT.md) for complete documentation.
 
 ### Running the Client
 
@@ -447,10 +462,21 @@ This implementation is currently based on **MCP Specification 2025-06-18** (late
 - New tool `get_server_logs` demonstrates resource link content type
 - Points to external resources instead of inlining large content
 
+**✅ HTTP Transport with SSE Streaming:** 🌐
+- Full HTTP/HTTPS transport support
+- Server-Sent Events for real-time streaming
+- RESTful API endpoints (/health, /protocol, /sse, /message)
+- CORS support for web-based clients
+- See [HTTP_TRANSPORT.md](./HTTP_TRANSPORT.md) for details
+
+**✅ Protocol Version Headers:**
+- All HTTP responses include `MCP-Protocol-Version: 2025-06-18` header
+- Protocol negotiation and validation
+- Version compatibility checking
+
 **🔜 Not Yet Implemented:**
 - Elicitation support (interactive tools)
 - Enhanced OAuth/RFC 8707 security
-- Protocol version headers (HTTP only)
 
 **2025-11-25 (Upcoming - Nov 25, 2025):**
 - Sampling (servers request LLM completions)
