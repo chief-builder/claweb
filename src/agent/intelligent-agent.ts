@@ -210,11 +210,28 @@ export class IntelligentAgent {
         // Claude has finished and provided a text response
         continueLoop = false;
 
-        // Add assistant message to history
-        this.conversationHistory.push({
-          role: 'assistant',
-          content: response.content,
+        // Add assistant message to history only if there's content
+        // Filter out empty text blocks to avoid API errors
+        const nonEmptyContent = response.content.filter((block) => {
+          if (block.type === 'text') {
+            return block.text.trim().length > 0;
+          }
+          return true; // Keep non-text blocks
         });
+
+        // Only add to history if we have non-empty content
+        if (nonEmptyContent.length > 0) {
+          this.conversationHistory.push({
+            role: 'assistant',
+            content: nonEmptyContent,
+          });
+        } else if (textResponse.trim().length > 0) {
+          // If filtering removed everything but we have text, add a text block
+          this.conversationHistory.push({
+            role: 'assistant',
+            content: [{ type: 'text', text: textResponse }],
+          });
+        }
 
         return textResponse;
       }
