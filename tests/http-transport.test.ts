@@ -32,16 +32,25 @@ describe('HTTP Transport', () => {
 
   describe('Server Initialization', () => {
     it('should initialize with correct protocol version', () => {
+      console.log('✓ Transport initialized:');
+      console.log('  Protocol version:', transport.protocolVersion);
+      console.log('  Transport type:', transport.type);
+
       expect(transport.protocolVersion).toBe(MCP_PROTOCOL_VERSION);
       expect(transport.type).toBe(TransportType.HTTP);
     });
 
     it('should be in connected state', () => {
+      console.log('✓ Connection state:', transport.state);
+
       expect(transport.state).toBe('connected');
     });
 
     it('should provide server info', () => {
       const info = transport.getServerInfo();
+
+      console.log('✓ Server info:', JSON.stringify(info, null, 2));
+
       expect(info).toBeDefined();
       expect(info?.host).toBe(testHost);
       expect(info?.port).toBe(testPort);
@@ -57,6 +66,8 @@ describe('HTTP Transport', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
+      console.log('✓ Health check response:', JSON.stringify(data, null, 2));
+
       expect(data).toMatchObject({
         status: 'ok',
         protocolVersion: MCP_PROTOCOL_VERSION,
@@ -68,6 +79,8 @@ describe('HTTP Transport', () => {
       const response = await fetch(`http://${testHost}:${testPort}/health`);
 
       const protocolHeader = response.headers.get('MCP-Protocol-Version');
+      console.log('✓ Protocol header:', protocolHeader);
+
       expect(protocolHeader).toBe(MCP_PROTOCOL_VERSION);
     });
   });
@@ -79,6 +92,8 @@ describe('HTTP Transport', () => {
       expect(response.ok).toBe(true);
 
       const data = await response.json();
+      console.log('✓ Protocol discovery response:', JSON.stringify(data, null, 2));
+
       expect(data).toMatchObject({
         protocol: 'MCP',
         version: MCP_PROTOCOL_VERSION,
@@ -89,6 +104,8 @@ describe('HTTP Transport', () => {
     it('should list available endpoints', async () => {
       const response = await fetch(`http://${testHost}:${testPort}/protocol`);
       const data = await response.json();
+
+      console.log('✓ Available endpoints:', JSON.stringify(data.endpoints, null, 2));
 
       expect(data.endpoints).toBeDefined();
       expect(data.endpoints).toMatchObject({
@@ -107,6 +124,7 @@ describe('HTTP Transport', () => {
         const response = await fetch(`http://${testHost}:${testPort}${endpoint}`);
         const versionHeader = response.headers.get('MCP-Protocol-Version');
 
+        console.log(`✓ ${endpoint} MCP-Protocol-Version header:`, versionHeader);
         expect(versionHeader).toBe(MCP_PROTOCOL_VERSION);
       }
     });
@@ -116,6 +134,12 @@ describe('HTTP Transport', () => {
 
       // Check for CORS headers
       const accessControl = response.headers.get('Access-Control-Allow-Origin');
+      const exposeHeaders = response.headers.get('Access-Control-Expose-Headers');
+
+      console.log('✓ CORS headers:');
+      console.log('  Access-Control-Allow-Origin:', accessControl);
+      console.log('  Access-Control-Expose-Headers:', exposeHeaders);
+
       expect(accessControl).toBeDefined();
     });
   });
@@ -128,6 +152,8 @@ describe('HTTP Transport', () => {
         id: 1,
       };
 
+      console.log('→ Sending test message:', JSON.stringify(testMessage));
+
       const response = await fetch(`http://${testHost}:${testPort}/message`, {
         method: 'POST',
         headers: {
@@ -136,6 +162,8 @@ describe('HTTP Transport', () => {
         },
         body: JSON.stringify(testMessage),
       });
+
+      console.log('← Response status:', response.status);
 
       // Since we don't have a message handler set, expect 503
       // In a full test, we'd set up a handler first
@@ -160,6 +188,9 @@ describe('HTTP Transport', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
+
+      console.log('✓ Error response (missing header):', JSON.stringify(data, null, 2));
+
       expect(data.error).toBeDefined();
     });
 
@@ -181,6 +212,9 @@ describe('HTTP Transport', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
+
+      console.log('✓ Error response (incompatible version):', JSON.stringify(data, null, 2));
+
       expect(data.error?.message).toContain('Incompatible protocol version');
     });
 
@@ -193,6 +227,8 @@ describe('HTTP Transport', () => {
         },
         body: 'invalid json',
       });
+
+      console.log('✓ Invalid JSON response status:', response.status);
 
       // Express body parser returns 400, our error handler might return 500
       expect([400, 500]).toContain(response.status);
@@ -254,6 +290,11 @@ describe('HTTP Transport - MCP 2025-06-18 Compliance', () => {
 
     const response = await fetch('http://localhost:3003/protocol');
     const versionHeader = response.headers.get('MCP-Protocol-Version');
+    const data = await response.json();
+
+    console.log('✓ MCP 2025-06-18 Compliance Check:');
+    console.log('  Protocol version header:', versionHeader);
+    console.log('  Response:', JSON.stringify(data, null, 2));
 
     expect(versionHeader).toBe('2025-06-18');
 
@@ -276,8 +317,17 @@ describe('HTTP Transport - MCP 2025-06-18 Compliance', () => {
     });
 
     // Should return 200 and have SSE content type
-    expect(response.ok).toBe(true);
     const contentType = response.headers.get('Content-Type');
+    const cacheControl = response.headers.get('Cache-Control');
+    const connection = response.headers.get('Connection');
+
+    console.log('✓ SSE Endpoint Check:');
+    console.log('  Status:', response.status, response.statusText);
+    console.log('  Content-Type:', contentType);
+    console.log('  Cache-Control:', cacheControl);
+    console.log('  Connection:', connection);
+
+    expect(response.ok).toBe(true);
     expect(contentType).toContain('text/event-stream');
 
     await transport.close();
