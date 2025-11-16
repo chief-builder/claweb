@@ -40,6 +40,7 @@ describe('MCP Integration Tests', () => {
 
       // Verify specific titles
       const calculator = tools.find((t) => t.name === 'calculator');
+      console.log(`      → Tool titles: ${tools.map(t => `"${t.title}"`).join(', ')}`);
       expect(calculator?.title).toBe('Calculator');
     });
 
@@ -80,6 +81,7 @@ describe('MCP Integration Tests', () => {
       expect(result.structuredContent).toBeTruthy();
 
       const structured = result.structuredContent;
+      console.log(`      → Structured output: ${structured.expression}`);
       expect(structured).toHaveProperty('operation', 'add');
       expect(structured).toHaveProperty('a', 10);
       expect(structured).toHaveProperty('b', 5);
@@ -164,6 +166,7 @@ describe('MCP Integration Tests', () => {
 
       expect(result.content).toHaveLength(1);
       const data = JSON.parse(result.content[0].text);
+      console.log(`      → Current time: ${data.timestamp} (${data.timezone})`);
       expect(data).toHaveProperty('timestamp');
       expect(data).toHaveProperty('timezone');
       expect(data).toHaveProperty('unix');
@@ -183,6 +186,7 @@ describe('MCP Integration Tests', () => {
 
       // MCP 2025-06-18: Verify structuredContent
       expect(result.structuredContent).toBeTruthy();
+      console.log(`      → Structured time fields: ${Object.keys(result.structuredContent).join(', ')}`);
       expect(result.structuredContent).toHaveProperty('timestamp');
       expect(result.structuredContent).toHaveProperty('timezone');
       expect(result.structuredContent).toHaveProperty('formatted');
@@ -207,6 +211,8 @@ describe('MCP Integration Tests', () => {
 
       // MCP 2025-06-18: Verify resource link structure
       if (resourceContent && resourceContent.type === 'resource') {
+        console.log(`      → Resource URI: ${resourceContent.resource.uri}`);
+        console.log(`      → Resource metadata: logType=${resourceContent.resource._meta.logType}, lines=${resourceContent.resource._meta.lines}`);
         expect(resourceContent.resource).toBeTruthy();
         expect(resourceContent.resource).toHaveProperty('uri');
         expect(resourceContent.resource.uri).toContain('file:///var/log/mcp-server/access.log');
@@ -249,6 +255,7 @@ describe('MCP Integration Tests', () => {
     it('should list all available resources', async () => {
       const resources = await client.listResources();
 
+      console.log(`      → Found ${resources.length} resources: ${resources.map(r => r.name).join(', ')}`);
       expect(resources).toHaveLength(2);
       expect(resources.map((r) => r.uri)).toContain('config://server');
       expect(resources.map((r) => r.uri)).toContain('status://server');
@@ -266,6 +273,8 @@ describe('MCP Integration Tests', () => {
       const configText = 'text' in contentItem ? contentItem.text : '{}';
       const config = JSON.parse(configText);
 
+      console.log(`      → Server: ${config.server.name} v${config.server.version} (MCP ${config.server.protocolVersion})`);
+      console.log(`      → Features: structuredOutput=${config.features.structuredOutput}, resourceLinks=${config.features.resourceLinks}, metadata=${config.features.metadata}`);
       expect(config.server.name).toBe('mcp-reference-server');
       expect(config.server.version).toBe('2.0.0');
       expect(config.server.protocolVersion).toBe('2025-06-18');
@@ -283,6 +292,7 @@ describe('MCP Integration Tests', () => {
       // MCP 2025-06-18: Verify _meta field
       expect(contentItem).toHaveProperty('_meta');
       if ('_meta' in contentItem) {
+        console.log(`      → Config metadata: version=${contentItem._meta.version}, static=${contentItem._meta.static}`);
         expect(contentItem._meta).toHaveProperty('generatedAt');
         expect(contentItem._meta).toHaveProperty('version', '2.0.0');
         expect(contentItem._meta).toHaveProperty('static', true);
