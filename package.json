@@ -1,7 +1,7 @@
 {
   "name": "mcp-reference-implementation",
-  "version": "1.0.0",
-  "description": "Reference implementation of MCP Server, Client, and Agent using the official TypeScript SDK",
+  "version": "2.0.0",
+  "description": "Reference implementation of MCP Server, Client, and Agent using the official TypeScript SDK (MCP 2025-06-18)",
   "type": "module",
   "scripts": {
     "build": "tsc",

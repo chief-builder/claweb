@@ -1,6 +1,8 @@
 /**
  * Resource Providers
  * Resources provide read-only data to clients
+ *
+ * MCP 2025-06-18: Added _meta fields for enhanced metadata
  */
 
 const serverStartTime = Date.now();
@@ -12,14 +14,20 @@ export function configResource() {
   const config = {
     server: {
       name: 'mcp-reference-server',
-      version: '1.0.0',
+      version: '2.0.0',  // Updated for 2025-06-18 spec
       protocol: 'MCP',
+      protocolVersion: '2025-06-18',  // MCP 2025-06-18
       transport: 'stdio',
     },
     capabilities: {
       tools: true,
       resources: true,
       prompts: true,
+    },
+    features: {
+      structuredOutput: true,  // MCP 2025-06-18
+      resourceLinks: true,      // MCP 2025-06-18
+      metadata: true,           // MCP 2025-06-18
     },
     limits: {
       maxRequestSize: 1024 * 1024, // 1MB
@@ -33,6 +41,12 @@ export function configResource() {
         uri: 'config://server',
         mimeType: 'application/json',
         text: JSON.stringify(config, null, 2),
+        // MCP 2025-06-18: Metadata
+        _meta: {
+          generatedAt: new Date().toISOString(),
+          version: '2.0.0',
+          static: true,
+        },
       },
     ],
   };
@@ -74,6 +88,13 @@ export function statusResource() {
         uri: 'status://server',
         mimeType: 'application/json',
         text: JSON.stringify(status, null, 2),
+        // MCP 2025-06-18: Metadata
+        _meta: {
+          generatedAt: new Date().toISOString(),
+          version: '2.0.0',
+          static: false,  // Dynamic resource
+          cacheControl: 'no-cache',
+        },
       },
     ],
   };

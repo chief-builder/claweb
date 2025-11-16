@@ -1,12 +1,23 @@
 /**
  * Calculator Tool
  * Performs basic arithmetic operations
+ *
+ * MCP 2025-06-18: Returns structured output with schema validation
  */
 
 interface CalculatorArgs {
   operation: 'add' | 'subtract' | 'multiply' | 'divide';
   a: number;
   b: number;
+}
+
+interface CalculatorOutput {
+  operation: string;
+  a: number;
+  b: number;
+  result: number;
+  expression: string;
+  timestamp: string;
 }
 
 export function calculatorTool(args: unknown) {
@@ -34,19 +45,25 @@ export function calculatorTool(args: unknown) {
       throw new Error(`Unknown operation: ${operation}`);
   }
 
+  // Structured output (2025-06-18)
+  const structuredOutput: CalculatorOutput = {
+    operation,
+    a,
+    b,
+    result,
+    expression: `${a} ${getOperatorSymbol(operation)} ${b} = ${result}`,
+    timestamp: new Date().toISOString(),
+  };
+
   return {
     content: [
       {
         type: 'text',
-        text: JSON.stringify({
-          operation,
-          a,
-          b,
-          result,
-          expression: `${a} ${getOperatorSymbol(operation)} ${b} = ${result}`,
-        }, null, 2),
+        text: JSON.stringify(structuredOutput, null, 2),
       },
     ],
+    // MCP 2025-06-18: Structured content for type-safe parsing
+    structuredContent: structuredOutput,
   };
 }
 

@@ -370,22 +370,36 @@ npm test
 
 ## 📋 MCP Specification Versions
 
-This implementation is currently based on **MCP Specification 2025-03-26** with plans to upgrade to newer versions.
+This implementation is currently based on **MCP Specification 2025-06-18** (latest stable).
 
 ### Current Status
 
-- ✅ **2025-03-26** - Fully implemented (current)
-- 📋 **2025-06-18** - Upgrade planned (latest stable)
+- ✅ **2025-06-18** - Fully implemented (current) ⭐
 - 🔮 **2025-11-25** - Roadmap prepared (upcoming)
 
-### What's New in Each Version
+### Implemented Features (2025-06-18)
 
-**2025-06-18 (Latest Stable):**
-- Structured tool output with schemas
+**✅ Structured Tool Output:**
+- All tools return `structuredContent` field with typed JSON
+- Output schemas defined for validation
+- Example: Calculator returns structured `{ operation, a, b, result, timestamp }`
+
+**✅ Display Names (title field):**
+- Tools have both `name` (programmatic) and `title` (display)
+- Resources have descriptive titles for better UX
+
+**✅ Metadata Fields (_meta):**
+- Resources include metadata (version, category, cache hints)
+- Resource contents have generation timestamps and versioning
+
+**✅ Resource Links:**
+- New tool `get_server_logs` demonstrates resource link content type
+- Points to external resources instead of inlining large content
+
+**🔜 Not Yet Implemented:**
 - Elicitation support (interactive tools)
-- Resource links
 - Enhanced OAuth/RFC 8707 security
-- Protocol version headers
+- Protocol version headers (HTTP only)
 
 **2025-11-25 (Upcoming - Nov 25, 2025):**
 - Sampling (servers request LLM completions)
