@@ -6,12 +6,12 @@ Quick reference guide for MCP specification versions and key differences.
 
 ```
 2025-03-26  →  2025-06-18  →  2025-11-25 (upcoming)
- (current)      (latest)        (future)
+ (baseline)     (current)       (future)
 ```
 
 ---
 
-## Version 2025-03-26 (Current Implementation)
+## Version 2025-03-26 (Baseline)
 
 **Release Date:** March 26, 2025
 
@@ -25,15 +25,12 @@ Quick reference guide for MCP specification versions and key differences.
 - ✅ JSON-RPC batching
 
 **Our Implementation Status:**
-- ✅ MCP Server with tools & resources
-- ✅ MCP Client with discovery
-- ✅ Simple rule-based agent
-- ✅ Intelligent agent with Claude Haiku
-- ✅ Full stdio transport
+- ✅ Fully implemented as baseline
+- ⬆️ Upgraded to 2025-06-18
 
 ---
 
-## Version 2025-06-18 (Latest Stable)
+## Version 2025-06-18 (Current Implementation) ⭐
 
 **Release Date:** June 18, 2025
 
@@ -95,6 +92,20 @@ MCP-Protocol-Version: 2025-06-18
 **Estimated Time:** 4 weeks
 **Breaking Changes:** Minimal (mainly batching removal)
 **Backward Compatibility:** High (most features are additions)
+
+### ✅ Our Implementation Status (2025-06-18)
+- ✅ Structured tool output - All tools
+- ✅ Output schemas - All tools
+- ✅ Display names (title) - All tools & resources
+- ✅ Metadata fields (_meta) - All resources
+- ✅ Resource links - Demo tool included
+- ⬜ Elicitation - Planned
+- ⬜ OAuth/RFC 8707 - Planned
+- ⬜ HTTP Headers - Planned
+
+**Compliance:** 5/8 features implemented (62.5%)
+
+See [MCP_2025_06_18_IMPLEMENTATION.md](./MCP_2025_06_18_IMPLEMENTATION.md) for details.
 
 ---
 

@@ -139,42 +139,60 @@ npm run test:integration
 
 2. **Add Your Own Tools:**
    - Create a new file in `src/server/tools/`
-   - Implement your tool function
+   - Implement your tool function with structured output
    - Register it in `src/server/index.ts`
    - Rebuild with `npm run build`
 
 3. **Add Your Own Resources:**
    - Create a new file in `src/server/resources/`
-   - Implement your resource function
+   - Implement your resource function with metadata
    - Register it in `src/server/index.ts`
    - Rebuild with `npm run build`
 
-4. **Integrate with an LLM:**
-   - Modify `src/agent/simple-agent.ts`
-   - Add LLM API calls (Claude, GPT, etc.)
-   - Use the LLM to decide which tools to call
-   - Build intelligent workflows
+4. **Extend the Intelligent Agent:**
+   - See `src/agent/intelligent-agent.ts` for LLM integration example
+   - Already includes Claude Haiku for smart tool selection
+   - Modify to add custom system prompts or behaviors
+   - Check [INTELLIGENT_AGENT.md](./INTELLIGENT_AGENT.md) for details
 
-## Example: Adding a New Tool
+## Example: Adding a New Tool (MCP 2025-06-18)
 
 1. Create `src/server/tools/weather.ts`:
 
 ```typescript
+interface WeatherArgs {
+  city: string;
+}
+
+interface WeatherOutput {
+  city: string;
+  temperature: number;
+  conditions: string;
+  humidity: number;
+  timestamp: string;
+}
+
 export function weatherTool(args: unknown) {
-  const { city } = args as { city: string };
+  const { city } = args as WeatherArgs;
 
   // In a real implementation, call a weather API
+  const structuredOutput: WeatherOutput = {
+    city,
+    temperature: 72,
+    conditions: 'Sunny',
+    humidity: 65,
+    timestamp: new Date().toISOString(),
+  };
+
   return {
     content: [
       {
         type: 'text',
-        text: JSON.stringify({
-          city,
-          temperature: 72,
-          conditions: 'Sunny',
-        }, null, 2),
+        text: JSON.stringify(structuredOutput, null, 2),
       },
     ],
+    // MCP 2025-06-18: Structured content for type-safe parsing
+    structuredContent: structuredOutput,
   };
 }
 ```
@@ -188,6 +206,7 @@ import { weatherTool } from './tools/weather.js';
 // Add to tools list
 {
   name: 'weather',
+  title: 'Weather',  // MCP 2025-06-18: Display name
   description: 'Get weather for a city',
   inputSchema: {
     type: 'object',
@@ -195,6 +214,18 @@ import { weatherTool } from './tools/weather.js';
       city: { type: 'string' }
     },
     required: ['city']
+  },
+  // MCP 2025-06-18: Output schema
+  outputSchema: {
+    type: 'object',
+    properties: {
+      city: { type: 'string' },
+      temperature: { type: 'number' },
+      conditions: { type: 'string' },
+      humidity: { type: 'number' },
+      timestamp: { type: 'string', format: 'date-time' }
+    },
+    required: ['city', 'temperature', 'conditions']
   }
 }
 

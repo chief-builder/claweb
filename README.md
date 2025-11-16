@@ -14,19 +14,37 @@ This reference implementation showcases:
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┐
-│  Simple Agent   │  ← Orchestrates tool calls and workflows
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   MCP Client    │  ← Discovers and invokes server capabilities
-└────────┬────────┘
-         │ stdio
-         ▼
-┌─────────────────┐
-│   MCP Server    │  ← Exposes tools and resources
-└─────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                  Intelligent Agent 🧠                 │
+│           (Claude Haiku + MCP Client)                │
+│  • Natural language understanding                    │
+│  • Smart tool selection                              │
+│  • Multi-step reasoning                              │
+└───────────────────┬──────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│                  Simple Agent                        │
+│           (Rule-based + MCP Client)                  │
+│  • Pre-defined workflows                             │
+│  • Pattern matching                                  │
+└───────────────────┬─────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│                  MCP Client                          │
+│  • Discovers server capabilities                     │
+│  • Invokes tools and reads resources                 │
+└───────────────────┬─────────────────────────────────┘
+                    │ stdio transport
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│                  MCP Server                          │
+│  • Tools: calculator, echo, time, logs               │
+│  • Resources: config, status                         │
+│  • Prompts: code_review                              │
+│  • MCP 2025-06-18 compliant ✅                       │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -163,6 +181,31 @@ await client.callTool('get_current_time', {
 // Returns: { timestamp: "2025-11-15T...", formatted: "...", ... }
 ```
 
+#### 4. **get_server_logs** 🆕
+Get server logs with resource links (MCP 2025-06-18).
+
+**Input Schema:**
+```json
+{
+  "logType": "error" | "access" | "debug",
+  "lines": number (optional)
+}
+```
+
+**Example:**
+```typescript
+await client.callTool('get_server_logs', {
+  logType: 'access',
+  lines: 100
+});
+// Returns resource link to log file
+```
+
+**Features:**
+- Demonstrates MCP 2025-06-18 resource links
+- Points to external log files instead of inlining
+- Efficient for large files
+
 ### Resources
 
 The server provides the following resources:
@@ -175,14 +218,20 @@ Server configuration and settings.
 {
   "server": {
     "name": "mcp-reference-server",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "protocol": "MCP",
+    "protocolVersion": "2025-06-18",
     "transport": "stdio"
   },
   "capabilities": {
     "tools": true,
     "resources": true,
     "prompts": true
+  },
+  "features": {
+    "structuredOutput": true,
+    "resourceLinks": true,
+    "metadata": true
   }
 }
 ```
@@ -426,28 +475,54 @@ This is a reference implementation meant for learning and demonstration. Feel fr
 
 - Add new tools
 - Implement additional resources
-- Enhance the agent with LLM integration
+- Extend the intelligent agent capabilities
 - Add more comprehensive error handling
 - Create additional examples
 
-## 📄 License
+## ✅ Already Implemented Enhancements
 
-MIT License
+This implementation already includes several advanced features:
+
+1. **LLM Integration** ✅
+   - Intelligent agent with Claude Haiku for smart tool selection
+   - Natural language understanding and tool orchestration
+   - Multi-step reasoning and chained tool calls
+   - See: `src/agent/intelligent-agent.ts`
+   - Docs: [INTELLIGENT_AGENT.md](./INTELLIGENT_AGENT.md)
+   - Run: `npm run dev:agent:intelligent`
+
+2. **MCP 2025-06-18 Features** ✅
+   - Structured tool output with schemas
+   - Display names (title fields)
+   - Metadata fields (_meta)
+   - Resource links
+   - See: [MCP_2025_06_18_IMPLEMENTATION.md](./MCP_2025_06_18_IMPLEMENTATION.md)
+
+3. **Comprehensive Documentation** ✅
+   - Complete upgrade plans for future spec versions
+   - Quick reference guides
+   - Implementation examples
+   - See: [MCP_UPGRADE_PLAN.md](./MCP_UPGRADE_PLAN.md)
 
 ## 🔮 Future Enhancements
 
 Potential areas for expansion:
 
-1. **LLM Integration**: Connect the agent to an actual LLM (Claude, GPT, etc.) for intelligent tool selection
-2. **HTTP Transport**: Add support for HTTP/SSE transport in addition to stdio
-3. **Persistent Resources**: Implement resources backed by databases or file systems
-4. **Authentication**: Add authentication and authorization mechanisms
+1. **HTTP Transport**: Add support for HTTP/SSE transport in addition to stdio
+2. **Persistent Resources**: Implement resources backed by databases or file systems
+3. **Enhanced OAuth/RFC 8707**: Complete authentication and authorization implementation
+4. **Elicitation Support**: Enable interactive tool execution with user prompts
 5. **Streaming**: Implement streaming responses for long-running operations
 6. **Subscriptions**: Add resource subscription support for real-time updates
 7. **Advanced Prompts**: Create more sophisticated prompt templates
 8. **Error Recovery**: Implement retry logic and graceful error handling
 9. **Monitoring**: Add metrics and logging capabilities
 10. **Multi-Server**: Demonstrate connecting to multiple MCP servers simultaneously
+11. **Sampling (2025-11-25)**: Servers request LLM completions
+12. **Multimodal (2025-11-25)**: Images, audio, video support
+13. **Agentic Workflows (2025-11-25)**: Multi-agent collaboration
+
+See [MCP_UPGRADE_PLAN.md](./MCP_UPGRADE_PLAN.md) for detailed roadmap.
 
 ## 📞 Support
 
