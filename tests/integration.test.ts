@@ -66,6 +66,7 @@ describe('MCP Integration Tests', () => {
 
       expect(result.content).toHaveLength(1);
       const data = JSON.parse(result.content[0].text);
+      console.log(`      → Result: ${data.a} + ${data.b} = ${data.result}`);
       expect(data.result).toBe(15);
     });
 
@@ -98,6 +99,7 @@ describe('MCP Integration Tests', () => {
       });
 
       const data = JSON.parse(result.content[0].text);
+      console.log(`      → Result: ${data.a} - ${data.b} = ${data.result}`);
       expect(data.result).toBe(5);
     });
 
@@ -109,6 +111,7 @@ describe('MCP Integration Tests', () => {
       });
 
       const data = JSON.parse(result.content[0].text);
+      console.log(`      → Result: ${data.a} × ${data.b} = ${data.result}`);
       expect(data.result).toBe(50);
     });
 
@@ -120,6 +123,7 @@ describe('MCP Integration Tests', () => {
       });
 
       const data = JSON.parse(result.content[0].text);
+      console.log(`      → Result: ${data.a} ÷ ${data.b} = ${data.result}`);
       expect(data.result).toBe(2);
     });
 
@@ -130,6 +134,7 @@ describe('MCP Integration Tests', () => {
         b: 0,
       });
 
+      console.log(`      → Error handled: ${result.content[0].text}`);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Division by zero');
     });
@@ -142,6 +147,7 @@ describe('MCP Integration Tests', () => {
         message: testMessage,
       });
 
+      console.log(`      → Echoed: "${result.content[0].text}"`);
       expect(result.content).toHaveLength(1);
       expect(result.content[0].text).toBe(testMessage);
     });
@@ -154,6 +160,7 @@ describe('MCP Integration Tests', () => {
 
       // MCP 2025-06-18: Verify structuredContent
       expect(result.structuredContent).toBeTruthy();
+      console.log(`      → Structured: message="${result.structuredContent.message}", length=${result.structuredContent.length}`);
       expect(result.structuredContent).toHaveProperty('message', testMessage);
       expect(result.structuredContent).toHaveProperty('length', testMessage.length);
       expect(result.structuredContent).toHaveProperty('timestamp');
@@ -178,6 +185,7 @@ describe('MCP Integration Tests', () => {
       });
 
       const data = JSON.parse(result.content[0].text);
+      console.log(`      → Time in ${data.timezone}: ${data.formatted}`);
       expect(data.timezone).toBe('America/New_York');
     });
 
@@ -232,6 +240,7 @@ describe('MCP Integration Tests', () => {
 
       const resourceContent = result.content.find((c) => c.type === 'resource');
       if (resourceContent && resourceContent.type === 'resource') {
+        console.log(`      → Log type: ${resourceContent.resource._meta.logType}, URI: ${resourceContent.resource.uri}`);
         expect(resourceContent.resource.uri).toContain('file:///var/log/mcp-server/error.log');
       }
     });
@@ -308,6 +317,8 @@ describe('MCP Integration Tests', () => {
       const statusText = 'text' in contentItem ? contentItem.text : '{}';
       const status = JSON.parse(statusText);
 
+      console.log(`      → Status: ${status.status}, Uptime: ${status.uptime.formatted}`);
+      console.log(`      → Memory: ${Math.round(status.memory.heapUsed / 1024 / 1024)}MB used / ${Math.round(status.memory.heapTotal / 1024 / 1024)}MB total`);
       expect(status.status).toBe('running');
       expect(status).toHaveProperty('uptime');
       expect(status).toHaveProperty('memory');
