@@ -13,12 +13,17 @@
 
 import express, { type Express } from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import type { Server as HTTPServer } from 'http';
 import { createOAuthRouter, type OAuthEndpointsConfig } from '../endpoints/oauth.js';
 import { JWTService } from '../oauth/jwt.js';
 import { InMemoryClientStore, ClientRegistrationService } from '../oauth/registration.js';
 import { TokenIntrospectionService } from '../oauth/introspection.js';
 import { InMemoryPKCEStore } from '../oauth/pkce.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Authorization Server configuration
@@ -54,6 +59,19 @@ export interface AuthorizationServerConfig {
    * Allowed CORS origins (default: '*')
    */
   corsOrigins?: string | string[];
+
+  /**
+   * Path to static files directory (for consent page, etc.)
+   * If not provided, interactive consent will be disabled
+   */
+  staticFilesPath?: string;
+
+  /**
+   * Enable interactive consent page (default: false)
+   * When true, authorization endpoint shows HTML consent page
+   * When false, authorization endpoint auto-approves (for testing)
+   */
+  interactiveConsent?: boolean;
 }
 
 /**
@@ -99,6 +117,9 @@ export class AuthorizationServer {
     // JSON body parser
     this.app.use(express.json());
 
+    // URL-encoded body parser (for form submissions)
+    this.app.use(express.urlencoded({ extended: true }));
+
     // CORS support
     if (this.config.cors !== false) {
       this.app.use(
@@ -108,6 +129,12 @@ export class AuthorizationServer {
           exposedHeaders: ['Content-Type', 'Authorization'],
         })
       );
+    }
+
+    // Serve static files if configured
+    if (this.config.staticFilesPath) {
+      console.error(`[AuthServer] Serving static files from: ${this.config.staticFilesPath}`);
+      this.app.use('/static', express.static(this.config.staticFilesPath));
     }
 
     // Request logging
@@ -137,6 +164,7 @@ export class AuthorizationServer {
       registrationService: this.registrationService,
       introspectionService: this.introspectionService,
       pkceStore: this.pkceStore,
+      interactiveConsent: this.config.interactiveConsent,
     });
 
     this.app.use(oauthRouter);

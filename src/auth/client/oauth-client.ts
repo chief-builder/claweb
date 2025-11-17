@@ -157,6 +157,22 @@ export class OAuthClient {
   }
 
   /**
+   * Get authorization URL for authorization code flow (convenience method)
+   *
+   * This is a simpler version of generateAuthorizationUrl() that:
+   * - Automatically generates and stores PKCE parameters internally
+   * - Returns just the URL string (not the full object)
+   * - Stores state internally for later validation
+   *
+   * @param params URL parameters
+   * @returns Authorization URL string (ready to redirect user)
+   */
+  async getAuthorizationUrl(params: AuthorizationUrlParams = {}): Promise<string> {
+    const result = this.generateAuthorizationUrl(params);
+    return result.url;
+  }
+
+  /**
    * Exchange authorization code for tokens
    *
    * @param code Authorization code from callback
