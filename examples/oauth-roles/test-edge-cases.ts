@@ -114,11 +114,19 @@ async function main() {
       body: JSON.stringify({
         client_name: 'Edge Test Client',
         client_type: 'confidential',
+        redirect_uris: ['http://localhost:8080/callback'], // Required field
         grant_types: ['client_credentials'],
         scope: 'mcp.tools.read',
       }),
     });
     const clientInfo = await clientResponse.json() as any;
+
+    if (!clientInfo.client_id || !clientInfo.client_secret) {
+      console.log('✗ Failed to register client');
+      console.log('  Response:', JSON.stringify(clientInfo, null, 2));
+      failedTests++;
+      throw new Error('Client registration failed');
+    }
 
     // Get token
     const tokenResponse = await fetch('http://localhost:4000/oauth/token', {
@@ -156,23 +164,31 @@ async function main() {
   }
   console.log('');
 
-  // Test 4: Token with wrong scope
+  // Test 4: Token with insufficient scope
   console.log('Test 4: Token with insufficient scope (should fail with 403)...');
   try {
-    // Register client with different scope
+    // Register client that can get tokens for resources
     const clientResponse = await fetch('http://localhost:4000/oauth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         client_name: 'Wrong Scope Client',
         client_type: 'confidential',
+        redirect_uris: ['http://localhost:8080/callback'],
         grant_types: ['client_credentials'],
-        scope: 'mcp.resources.read', // Wrong scope!
+        scope: 'mcp.resources.read', // This scope is valid for mcp://resources
       }),
     });
     const clientInfo = await clientResponse.json() as any;
 
-    // Get token with wrong scope
+    if (!clientInfo.client_id || !clientInfo.client_secret) {
+      console.log('✗ Failed to register client');
+      console.log('  Response:', JSON.stringify(clientInfo, null, 2));
+      failedTests++;
+      throw new Error('Client registration failed');
+    }
+
+    // Get token for mcp://resources (which has scope mcp.resources.read)
     const tokenResponse = await fetch('http://localhost:4000/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -180,13 +196,20 @@ async function main() {
         grant_type: 'client_credentials',
         client_id: clientInfo.client_id,
         client_secret: clientInfo.client_secret,
-        scope: 'mcp.resources.read', // Wrong scope!
-        resource: 'mcp://tools',
+        scope: 'mcp.resources.read',
+        resource: 'mcp://resources', // Get token for resources, not tools
       }),
     });
     const tokens = await tokenResponse.json() as any;
 
-    // Try to access resource (should fail)
+    if (!tokens.access_token) {
+      console.log('✗ Failed to get token');
+      console.log('  Response:', JSON.stringify(tokens, null, 2));
+      failedTests++;
+      throw new Error('Token request failed');
+    }
+
+    // Try to access /mcp/tools with a token that has wrong scope (should fail with 403)
     const response = await fetch('http://localhost:3000/mcp/tools', {
       headers: { 'Authorization': `Bearer ${tokens.access_token}` },
     });
@@ -207,7 +230,7 @@ async function main() {
   }
   console.log('');
 
-  // Test 5: Token with wrong resource
+  // Test 5: Token with wrong resource indicator
   console.log('Test 5: Token with wrong resource indicator (should fail with 403)...');
   try {
     // Register client
@@ -217,13 +240,21 @@ async function main() {
       body: JSON.stringify({
         client_name: 'Wrong Resource Client',
         client_type: 'confidential',
+        redirect_uris: ['http://localhost:8080/callback'],
         grant_types: ['client_credentials'],
-        scope: 'mcp.tools.read',
+        scope: 'mcp.resources.read', // Valid scope for mcp://resources
       }),
     });
     const clientInfo = await clientResponse.json() as any;
 
-    // Get token for wrong resource
+    if (!clientInfo.client_id || !clientInfo.client_secret) {
+      console.log('✗ Failed to register client');
+      console.log('  Response:', JSON.stringify(clientInfo, null, 2));
+      failedTests++;
+      throw new Error('Token request failed');
+    }
+
+    // Get token for mcp://resources (not mcp://tools)
     const tokenResponse = await fetch('http://localhost:4000/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -231,13 +262,20 @@ async function main() {
         grant_type: 'client_credentials',
         client_id: clientInfo.client_id,
         client_secret: clientInfo.client_secret,
-        scope: 'mcp.tools.read',
-        resource: 'mcp://admin', // Wrong resource!
+        scope: 'mcp.resources.read',
+        resource: 'mcp://resources', // Get token for resources, not tools
       }),
     });
     const tokens = await tokenResponse.json() as any;
 
-    // Try to access resource (should fail)
+    if (!tokens.access_token) {
+      console.log('✗ Failed to get token');
+      console.log('  Response:', JSON.stringify(tokens, null, 2));
+      failedTests++;
+      throw new Error('Token request failed');
+    }
+
+    // Try to access /mcp/tools with a token for wrong resource (should fail with 403)
     const response = await fetch('http://localhost:3000/mcp/tools', {
       headers: { 'Authorization': `Bearer ${tokens.access_token}` },
     });
