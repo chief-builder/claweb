@@ -88,22 +88,12 @@ export {
   type ResourceIndicatorResponse,
 } from './rfc8707/indicators.js';
 
-// Middleware
-export {
-  authenticate,
-  requireScopes,
-  requireResource,
-  authorize,
-  protect,
-  configureOAuth,
-  getOAuthConfig,
-  oauthErrorHandler,
-  type OAuthRequest,
-  type OAuthMiddlewareOptions,
-  type OAuthConfig,
-} from './middleware/oauth.js';
+// ============================================================================
+// Legacy Exports (for backward compatibility with combined approach)
+// ============================================================================
+// Note: New code should use the role-separated exports above
 
-// Endpoints
+// OAuth Endpoints (used by Authorization Server)
 export {
   createOAuthRouter,
   type OAuthEndpointsConfig,
