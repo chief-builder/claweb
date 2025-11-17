@@ -16,6 +16,7 @@ import { PKCEService, PKCEStore, CodeChallengeMethod } from '../oauth/pkce.js';
 import { JWTService } from '../oauth/jwt.js';
 import { ClientRegistrationService } from '../oauth/registration.js';
 import { TokenIntrospectionService } from '../oauth/introspection.js';
+import { TokenRevocationService } from '../oauth/revocation.js';
 import { getResourceIndicatorService } from '../rfc8707/indicators.js';
 import { authenticate } from '../middleware/oauth.js';
 
@@ -42,6 +43,11 @@ export interface OAuthEndpointsConfig {
    * Token introspection service
    */
   introspectionService: TokenIntrospectionService;
+
+  /**
+   * Token revocation service
+   */
+  revocationService: TokenRevocationService;
 
   /**
    * PKCE store
@@ -589,6 +595,31 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
         error: 'server_error',
         error_description: error instanceof Error ? error.message : 'Introspection failed',
       });
+    }
+  });
+
+  /**
+   * Token Revocation endpoint (RFC 7009)
+   * POST /oauth/revoke
+   *
+   * Allows clients to notify the authorization server that a previously
+   * obtained token is no longer needed and should be invalidated.
+   */
+  router.post('/oauth/revoke', async (req: Request, res: Response) => {
+    try {
+      const result = await config.revocationService.revokeToken(req.body);
+
+      // RFC 7009: The authorization server responds with HTTP 200
+      // regardless of whether the token was successfully revoked
+      // or if the client submitted an invalid token
+      res.status(200).json(result.success ? {} : {
+        error: result.error,
+        error_description: result.error_description,
+      });
+    } catch (error) {
+      // Per RFC 7009, return 200 even on error to prevent token scanning
+      console.error('[OAuth] Revocation error:', error);
+      res.status(200).json({});
     }
   });
 

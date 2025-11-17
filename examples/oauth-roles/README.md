@@ -418,6 +418,20 @@ This validates error handling and edge cases (5 tests):
 - ✅ Insufficient scope → 403 Forbidden
 - ✅ Wrong resource → 403 Forbidden
 
+### Run Token Revocation Test (RFC 7009)
+
+```bash
+npm run example:oauth:test-revocation
+```
+
+This validates token revocation functionality (6 tests):
+- ✅ Token is valid before revocation
+- ✅ Token revocation endpoint works
+- ✅ Returns HTTP 200 per RFC 7009
+- ✅ Handles invalid tokens gracefully
+- ✅ Accepts revocation without client auth (public clients)
+- ✅ Supports both access_token and refresh_token hints
+
 ---
 
 ## 🐛 Troubleshooting
@@ -534,6 +548,50 @@ await client.fetch('https://service1.example.com/mcp/tools');
 await client.fetch('https://service2.example.com/mcp/resources');
 ```
 
+### Use Case 3: Token Revocation (RFC 7009)
+
+```typescript
+// Logout or security event - revoke active tokens
+const client = new OAuthClient({
+  clientId: 'your_client_id',
+  clientSecret: 'your_client_secret',
+  authorizationServer: 'https://auth.example.com',
+});
+
+// Get token
+const tokens = await client.getClientCredentialsToken('mcp.tools.read');
+
+// Use token for a while...
+await client.fetch('https://api.example.com/mcp/tools');
+
+// Revoke token when done or on logout
+await fetch('https://auth.example.com/oauth/revoke', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    token: tokens.access_token,
+    token_type_hint: 'access_token',
+    client_id: 'your_client_id',
+    client_secret: 'your_client_secret',
+  }),
+});
+
+console.log('Token revoked successfully');
+```
+
+**When to revoke tokens:**
+- User logout
+- Security breach detected
+- Client application uninstalled
+- Token no longer needed
+- Session timeout
+
+**Benefits:**
+- Improved security (invalidate compromised tokens)
+- Resource cleanup (remove unused tokens)
+- Compliance (GDPR, data privacy)
+- Audit trail (track token lifecycle)
+
 ---
 
 ## 🔒 Production Security Checklist
@@ -583,6 +641,7 @@ app.post('/oauth/token', tokenLimiter, ...);
 ## Further Reading
 
 - [RFC 6749](https://tools.ietf.org/html/rfc6749) - OAuth 2.0 Framework
+- [RFC 7009](https://tools.ietf.org/html/rfc7009) - Token Revocation
 - [RFC 7519](https://tools.ietf.org/html/rfc7519) - JSON Web Token (JWT)
 - [RFC 7636](https://tools.ietf.org/html/rfc7636) - PKCE
 - [RFC 7591](https://tools.ietf.org/html/rfc7591) - Dynamic Client Registration

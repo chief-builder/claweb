@@ -20,6 +20,7 @@ import { createOAuthRouter, type OAuthEndpointsConfig } from '../endpoints/oauth
 import { JWTService } from '../oauth/jwt.js';
 import { InMemoryClientStore, ClientRegistrationService } from '../oauth/registration.js';
 import { TokenIntrospectionService } from '../oauth/introspection.js';
+import { TokenRevocationService } from '../oauth/revocation.js';
 import { InMemoryPKCEStore } from '../oauth/pkce.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -90,6 +91,7 @@ export class AuthorizationServer {
   private clientStore: InMemoryClientStore;
   private registrationService: ClientRegistrationService;
   private introspectionService: TokenIntrospectionService;
+  private revocationService: TokenRevocationService;
   private pkceStore: InMemoryPKCEStore;
 
   constructor(config: AuthorizationServerConfig) {
@@ -101,6 +103,10 @@ export class AuthorizationServer {
     this.clientStore = new InMemoryClientStore();
     this.registrationService = new ClientRegistrationService(this.clientStore);
     this.introspectionService = new TokenIntrospectionService(
+      this.jwtService,
+      this.registrationService
+    );
+    this.revocationService = new TokenRevocationService(
       this.jwtService,
       this.registrationService
     );
@@ -163,6 +169,7 @@ export class AuthorizationServer {
       jwtService: this.jwtService,
       registrationService: this.registrationService,
       introspectionService: this.introspectionService,
+      revocationService: this.revocationService,
       pkceStore: this.pkceStore,
       interactiveConsent: this.config.interactiveConsent,
     });
@@ -226,6 +233,9 @@ export class AuthorizationServer {
     if (!this.server) {
       return;
     }
+
+    // Shutdown revocation service
+    this.revocationService.shutdown();
 
     return new Promise((resolve) => {
       this.server!.close(() => {

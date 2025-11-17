@@ -24,6 +24,7 @@
     "example:oauth:client": "tsx examples/oauth-roles/03-oauth-client.ts",
     "example:oauth:test-flow": "tsx examples/oauth-roles/test-complete-flow.ts",
     "example:oauth:test-interactive": "tsx examples/oauth-roles/test-interactive-flow.ts",
+    "example:oauth:test-revocation": "tsx examples/oauth-roles/test-token-revocation.ts",
     "example:oauth:interactive": "tsx examples/oauth-roles/04-interactive-demo.ts",
     "example:oauth:edge-cases": "tsx examples/oauth-roles/test-edge-cases.ts",
     "inspector": "npx @modelcontextprotocol/inspector node dist/server/index.js"
