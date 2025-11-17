@@ -19,6 +19,10 @@
     "dev:agent": "tsx src/agent/simple-agent.ts",
     "dev:agent:intelligent": "tsx src/agent/intelligent-agent.ts",
     "example:interactive": "tsx src/examples/interactive-agent.ts",
+    "example:oauth:auth-server": "tsx examples/oauth-roles/01-authorization-server.ts",
+    "example:oauth:resource-server": "tsx examples/oauth-roles/02-resource-server.ts",
+    "example:oauth:client": "tsx examples/oauth-roles/03-oauth-client.ts",
+    "example:oauth:test-flow": "tsx examples/oauth-roles/test-complete-flow.ts",
     "inspector": "npx @modelcontextprotocol/inspector node dist/server/index.js"
   },
   "keywords": [
@@ -35,8 +39,12 @@
     "@modelcontextprotocol/sdk": "^1.0.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "jose": "^6.1.2",
+    "jsonwebtoken": "^9.0.2",
+    "oauth4webapi": "^3.8.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {

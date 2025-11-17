@@ -1,21 +1,16 @@
 /**
- * HTTP Server Transport for MCP
+ * HTTP Resource Server Transport for MCP
  *
- * Implements HTTP transport with Server-Sent Events (SSE) streaming
- * MCP 2025-06-18 specification compliant
+ * MCP server acting as an OAuth 2.0 Resource Server.
+ * Validates access tokens but does NOT issue them.
  *
- * @deprecated For OAuth-protected MCP servers, use HttpResourceServerTransport instead.
- * This transport does not support OAuth authentication.
- *
- * For OAuth support with proper role separation:
- * - Authorization Server: Use AuthorizationServer from auth/authorization-server/
- * - Resource Server: Use HttpResourceServerTransport from transport/http/resource-server-transport
- * - OAuth Client: Use OAuthClient from auth/client/
+ * For token issuance, use the separate Authorization Server.
  */
 
 import express, { type Express, type Request, type Response } from 'express';
 import cors from 'cors';
 import type { Server as HTTPServer } from 'http';
+import * as jose from 'jose';
 import {
   TransportType,
   ConnectionState,
@@ -33,13 +28,94 @@ import {
   getProtocolVersionHeader,
 } from './headers.js';
 import { SSEStreamManager, type SSEStream } from './streaming.js';
+import {
+  configureResourceServer,
+  protectResource,
+  type ResourceServerConfig,
+} from '../../auth/resource-server/middleware.js';
+import { JWTService } from '../../auth/oauth/jwt.js';
 
 /**
- * HTTP Server Transport implementation (without OAuth)
- *
- * For OAuth-protected servers, use HttpResourceServerTransport instead.
+ * Fetch JWKS from authorization server and extract public key
  */
-export class HttpServerTransport implements ITransport {
+async function fetchPublicKeyFromJWKS(jwksUrl: string): Promise<{ publicKey: string; keyId: string } | null> {
+  try {
+    const response = await fetch(jwksUrl);
+    if (!response.ok) {
+      console.error('[ResourceServer] Failed to fetch JWKS:', response.statusText);
+      return null;
+    }
+
+    const jwks = await response.json() as any;
+
+    if (!jwks.keys || !Array.isArray(jwks.keys) || jwks.keys.length === 0) {
+      console.error('[ResourceServer] No keys found in JWKS');
+      return null;
+    }
+
+    // Get the first signing key
+    const jwk = jwks.keys.find((key: any) => key.use === 'sig' || !key.use);
+
+    if (!jwk) {
+      console.error('[ResourceServer] No signing key found in JWKS');
+      return null;
+    }
+
+    // Convert JWK to PEM using jose library
+    const keyObject = await jose.importJWK(jwk, jwk.alg || 'RS256');
+    const publicKey = await jose.exportSPKI(keyObject as any);
+
+    console.error('[ResourceServer] Successfully fetched public key from JWKS');
+    console.error('[ResourceServer] Key ID:', jwk.kid);
+
+    return {
+      publicKey,
+      keyId: jwk.kid,
+    };
+  } catch (error) {
+    console.error('[ResourceServer] Error fetching JWKS:', error);
+    return null;
+  }
+}
+
+/**
+ * Resource server configuration for HTTP transport
+ */
+export interface HttpResourceServerConfig {
+  /**
+   * Enable OAuth 2.0 resource protection
+   */
+  enabled: boolean;
+
+  /**
+   * JWT service for token validation
+   * Should use the same keys as the authorization server
+   */
+  jwtService?: JWTService;
+
+  /**
+   * Authorization server URL (issuer)
+   */
+  authorizationServer: string;
+
+  /**
+   * Authorization server's JWKS URL for remote key fetching
+   */
+  jwksUrl?: string;
+
+  /**
+   * This resource server's identifier (audience)
+   */
+  audience?: string;
+}
+
+/**
+ * HTTP Server Transport as OAuth 2.0 Resource Server
+ *
+ * This transport validates OAuth tokens but does NOT issue them.
+ * Tokens must be obtained from a separate Authorization Server.
+ */
+export class HttpResourceServerTransport implements ITransport {
   readonly type = TransportType.HTTP;
   readonly protocolVersion: string;
 
@@ -49,16 +125,75 @@ export class HttpServerTransport implements ITransport {
   private _state: ConnectionState = ConnectionState.DISCONNECTED;
   private eventHandlers = new Map<keyof TransportEvents, Set<Function>>();
   private config: TransportConfig | null = null;
+  private resourceServerConfig: HttpResourceServerConfig | null = null;
 
   // Message handler for incoming MCP messages
   private messageHandler?: (message: any) => Promise<any>;
 
-  constructor(protocolVersion: string = MCP_PROTOCOL_VERSION) {
+  constructor(
+    protocolVersion: string = MCP_PROTOCOL_VERSION,
+    resourceServerConfig?: HttpResourceServerConfig
+  ) {
     this.protocolVersion = protocolVersion;
+    this.resourceServerConfig = resourceServerConfig || null;
     this.app = express();
     this.streamManager = new SSEStreamManager();
+
+    // Note: OAuth resource server will be initialized in initialize() method
+    // because it needs to fetch JWKS asynchronously
+
     this.setupMiddleware();
     this.setupRoutes();
+  }
+
+  /**
+   * Initialize resource server (async to fetch JWKS)
+   */
+  private async initializeResourceServer(): Promise<void> {
+    if (!this.resourceServerConfig) {
+      return;
+    }
+
+    console.error('[ResourceServer] Initializing OAuth 2.0 Resource Server...');
+    console.error('[ResourceServer] Authorization Server:', this.resourceServerConfig.authorizationServer);
+
+    let jwtService = this.resourceServerConfig.jwtService;
+
+    // If no JWT service provided, fetch public key from authorization server
+    if (!jwtService) {
+      // Determine JWKS URL
+      const jwksUrl = this.resourceServerConfig.jwksUrl ||
+        `${this.resourceServerConfig.authorizationServer}/oauth/jwks`;
+
+      console.error('[ResourceServer] Fetching JWKS from:', jwksUrl);
+
+      const keyInfo = await fetchPublicKeyFromJWKS(jwksUrl);
+
+      if (keyInfo) {
+        // Create JWT service with the public key from authorization server
+        jwtService = new JWTService({
+          publicKey: keyInfo.publicKey,
+          keyId: keyInfo.keyId,
+          issuer: this.resourceServerConfig.authorizationServer,
+        });
+      } else {
+        throw new Error(
+          `Failed to fetch JWKS from ${jwksUrl}. ` +
+          'Ensure the authorization server is running and accessible.'
+        );
+      }
+    }
+
+    const config: ResourceServerConfig = {
+      jwtService,
+      issuer: this.resourceServerConfig.authorizationServer,
+      audience: this.resourceServerConfig.audience,
+      jwksUrl: this.resourceServerConfig.jwksUrl,
+    };
+
+    configureResourceServer(config);
+
+    console.error('[ResourceServer] Resource server initialized');
   }
 
   get state(): ConnectionState {
@@ -106,40 +241,57 @@ export class HttpServerTransport implements ITransport {
    * Setup HTTP routes
    */
   private setupRoutes(): void {
-    // Health check endpoint
+    // Health check endpoint (public)
     this.app.get('/health', (req, res) => {
       setJSONHeaders(res, this.protocolVersion);
       res.json({
         status: 'ok',
         protocolVersion: this.protocolVersion,
         transport: 'http',
+        role: 'resource-server',
+        oauth: this.resourceServerConfig?.enabled || false,
+        authorizationServer: this.resourceServerConfig?.authorizationServer,
         activeStreams: this.streamManager.getActiveStreamCount(),
       });
     });
 
-    // SSE endpoint for streaming MCP messages
+    // SSE endpoint for streaming MCP messages (optionally protected)
     this.app.get('/sse', (req, res) => {
       this.handleSSEConnection(req, res);
     });
 
-    // POST endpoint for sending MCP messages
+    // POST endpoint for sending MCP messages (optionally protected)
     this.app.post('/message', async (req, res) => {
       await this.handleMessage(req, res);
     });
 
-    // Protocol discovery endpoint
+    // Protocol discovery endpoint (public)
     this.app.get('/protocol', (req, res) => {
       setJSONHeaders(res, this.protocolVersion);
-      res.json({
+      const protocolInfo: any = {
         protocol: 'MCP',
         version: this.protocolVersion,
         transports: ['http', 'sse'],
+        role: 'resource-server',
         endpoints: {
           sse: '/sse',
           message: '/message',
           health: '/health',
         },
-      });
+      };
+
+      // Add OAuth info if enabled
+      if (this.resourceServerConfig?.enabled) {
+        protocolInfo.oauth = {
+          enabled: true,
+          role: 'resource-server',
+          authorizationServer: this.resourceServerConfig.authorizationServer,
+          tokenValidation: 'bearer',
+          note: 'This server validates tokens but does not issue them. Obtain tokens from the authorization server.',
+        };
+      }
+
+      res.json(protocolInfo);
     });
 
     // Error handler
@@ -255,16 +407,25 @@ export class HttpServerTransport implements ITransport {
     this.config = config;
     this.setState(ConnectionState.CONNECTING);
 
+    // Initialize OAuth resource server (fetch JWKS if needed)
+    if (this.resourceServerConfig?.enabled) {
+      await this.initializeResourceServer();
+    }
+
     const host = config.host || 'localhost';
     const port = config.port || 3000;
 
     return new Promise((resolve, reject) => {
       try {
         this.server = this.app.listen(port, host, () => {
-          console.error(`[HTTP] Server listening on http://${host}:${port}`);
+          console.error(`[HTTP] MCP Resource Server listening on http://${host}:${port}`);
           console.error(`[HTTP] Protocol version: ${this.protocolVersion}`);
           console.error(`[HTTP] SSE endpoint: http://${host}:${port}/sse`);
           console.error(`[HTTP] Message endpoint: http://${host}:${port}/message`);
+          if (this.resourceServerConfig?.enabled) {
+            console.error(`[HTTP] OAuth: Enabled (Resource Server)`);
+            console.error(`[HTTP] Auth Server: ${this.resourceServerConfig.authorizationServer}`);
+          }
           this.setState(ConnectionState.CONNECTED);
           this.emit('connect');
           resolve();
@@ -391,6 +552,9 @@ export class HttpServerTransport implements ITransport {
     host: string;
     port: number;
     protocolVersion: string;
+    role: string;
+    oauth: boolean;
+    authorizationServer?: string;
     activeStreams: number;
   } | null {
     if (!this.config || !this.server) {
@@ -401,7 +565,17 @@ export class HttpServerTransport implements ITransport {
       host: this.config.host || 'localhost',
       port: this.config.port || 3000,
       protocolVersion: this.protocolVersion,
+      role: 'resource-server',
+      oauth: this.resourceServerConfig?.enabled || false,
+      authorizationServer: this.resourceServerConfig?.authorizationServer,
       activeStreams: this.streamManager.getActiveStreamCount(),
     };
+  }
+
+  /**
+   * Get Express app (for adding protected routes)
+   */
+  getApp(): Express {
+    return this.app;
   }
 }
