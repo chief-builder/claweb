@@ -8,18 +8,24 @@
  * - Dynamic Client Registration (RFC 7591)
  * - Token Introspection (RFC 7662)
  * - Resource Indicators (RFC 8707)
+ *
+ * Uses the role-separated OAuth architecture:
+ * - AuthorizationServer for token issuance
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { HttpServerTransport, type HttpTransportOAuthConfig } from '../src/transport/http/server.js';
+import { AuthorizationServer } from '../src/auth/authorization-server/server.js';
+import { HttpResourceServerTransport } from '../src/transport/http/resource-server-transport.js';
 import { TransportType, MCP_PROTOCOL_VERSION } from '../src/transport/base.js';
 import { PKCEService, CodeChallengeMethod } from '../src/auth/oauth/pkce.js';
 
 describe('OAuth 2.0 / RFC 8707 Integration', () => {
-  let transport: HttpServerTransport;
-  const testPort = 3100;
+  let authServer: AuthorizationServer;
+  let resourceServer: HttpResourceServerTransport;
+  const authPort = 3100;
+  const resourcePort = 3101;
   const testHost = 'localhost';
-  const issuer = `http://${testHost}:${testPort}`;
+  const issuer = `http://${testHost}:${authPort}`;
 
   // Test data
   let testClient: any;
@@ -30,26 +36,40 @@ describe('OAuth 2.0 / RFC 8707 Integration', () => {
   let pkceChallenge: string;
 
   beforeAll(async () => {
-    // Initialize HTTP server transport with OAuth enabled
-    const oauthConfig: HttpTransportOAuthConfig = {
-      enabled: true,
+    // Initialize Authorization Server (issues tokens)
+    authServer = new AuthorizationServer({
+      host: testHost,
+      port: authPort,
       issuer,
-    };
+      cors: true,
+    });
 
-    transport = new HttpServerTransport(MCP_PROTOCOL_VERSION, oauthConfig);
+    await authServer.start();
 
-    await transport.initialize({
+    // Initialize Resource Server (validates tokens, serves protected resources)
+    resourceServer = new HttpResourceServerTransport(MCP_PROTOCOL_VERSION, {
+      enabled: true,
+      authorizationServer: issuer,
+    });
+
+    await resourceServer.initialize({
       type: TransportType.HTTP,
       host: testHost,
-      port: testPort,
+      port: resourcePort,
       cors: true,
     });
 
     console.log('\n🔐 OAuth 2.0 / RFC 8707 Test Suite Started\n');
+    console.log(`   Authorization Server: ${issuer}`);
+    console.log(`   Resource Server: http://${testHost}:${resourcePort}\n`);
   });
 
+  // Helper to get resource server URL
+  const resourceServerUrl = `http://${testHost}:${resourcePort}`;
+
   afterAll(async () => {
-    await transport.close();
+    await resourceServer.close();
+    await authServer.stop();
     console.log('\n✅ OAuth 2.0 / RFC 8707 Test Suite Completed\n');
   });
 
@@ -93,7 +113,7 @@ describe('OAuth 2.0 / RFC 8707 Integration', () => {
     });
 
     it('should include OAuth endpoints in protocol discovery', async () => {
-      const response = await fetch(`${issuer}/protocol`);
+      const response = await fetch(`${resourceServerUrl}/protocol`);
 
       expect(response.ok).toBe(true);
 
@@ -102,15 +122,7 @@ describe('OAuth 2.0 / RFC 8707 Integration', () => {
 
       expect(data.oauth).toBeDefined();
       expect(data.oauth.enabled).toBe(true);
-      expect(data.oauth.endpoints).toMatchObject({
-        authorization: '/oauth/authorize',
-        token: '/oauth/token',
-        registration: '/oauth/register',
-        introspection: '/oauth/introspect',
-        jwks: '/oauth/jwks',
-        discovery: '/.well-known/oauth-authorization-server',
-        resources: '/oauth/resources',
-      });
+      expect(data.oauth.authorizationServer).toBe(issuer);
     });
   });
 
@@ -530,7 +542,9 @@ describe('OAuth 2.0 / RFC 8707 Integration', () => {
       const health = await response.json();
       console.log('✓ Health Check with OAuth:', JSON.stringify(health, null, 2));
 
-      expect(health.oauth).toBe(true);
+      expect(health.status).toBe('ok');
+      expect(health.service).toBe('oauth-authorization-server');
+      expect(health.issuer).toBe(issuer);
     });
   });
 });

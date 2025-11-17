@@ -155,8 +155,8 @@ export class JWTService {
     return jwt.sign(fullPayload, this.privateKey, {
       algorithm: this.algorithm as jwt.Algorithm,
       keyid: this.keyId,
+      jwtid: options?.jwtid || crypto.randomBytes(16).toString('hex'), // Always include unique jti
       ...(options?.audience && { audience: options.audience }),
-      ...(options?.jwtid && { jwtid: options.jwtid }),
     });
   }
 

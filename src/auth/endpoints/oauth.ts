@@ -459,7 +459,7 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
    * Token Introspection endpoint (RFC 7662)
    * POST /oauth/introspect
    */
-  router.post('/oauth/introspect', authenticate({ optional: false }), async (req: Request, res: Response) => {
+  router.post('/oauth/introspect', authenticate({ optional: false, jwtService: config.jwtService }), async (req: Request, res: Response) => {
     try {
       const result = await config.introspectionService.introspect(req.body);
       res.json(result);
