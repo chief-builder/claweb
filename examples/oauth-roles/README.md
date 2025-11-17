@@ -142,6 +142,74 @@ npm run example:oauth:client
 ```
 Demonstrates token acquisition and usage
 
+### Interactive Authorization Code Flow
+
+**NEW! Interactive demo with HTML consent page**
+
+```bash
+npm run example:oauth:interactive
+```
+
+This starts a complete interactive OAuth 2.0 flow:
+- **Authorization Server** with interactive consent page (port 4000)
+- **Resource Server** with protected MCP resources (port 3000)
+- **Demo Web Application** that initiates OAuth flow (port 8080)
+
+**Try it out**:
+1. Open your browser to http://localhost:8080
+2. Click "Login with OAuth"
+3. See the beautiful consent page
+4. Click "Authorize" to approve access
+5. Get redirected back with access token
+6. View protected MCP tools
+
+**Features demonstrated**:
+- ✅ Full authorization code flow with PKCE
+- ✅ Interactive user consent (approve/deny)
+- ✅ Authorization code generation and exchange
+- ✅ Token-based access to protected resources
+- ✅ Beautiful, responsive consent UI
+- ✅ Real browser-based flow
+
+---
+
+## Interactive Consent Page
+
+The authorization server can show an interactive consent page when configured:
+
+```typescript
+const authServer = new AuthorizationServer({
+  issuer: 'http://localhost:4000',
+  port: 4000,
+  staticFilesPath: path.join(__dirname, 'static'), // Serve consent.html
+  interactiveConsent: true, // Enable interactive flow
+});
+```
+
+**Consent Page Features**:
+- Shows application name and requested permissions
+- Displays scopes with human-readable descriptions
+- Shows resource indicators (which APIs will be accessed)
+- Beautiful, responsive UI with modern design
+- Security warnings and notes
+- Approve/Deny buttons
+
+**How it works**:
+1. User visits `/oauth/authorize` with OAuth parameters
+2. Authorization server redirects to `/static/consent.html` with parameters
+3. Consent page displays permissions and prompts user
+4. User clicks "Authorize" → redirects to `/oauth/authorize/approve`
+5. Server generates authorization code and redirects to client
+6. Client exchanges code for access token
+
+**Auto-approve mode** (for testing):
+```typescript
+const authServer = new AuthorizationServer({
+  issuer: 'http://localhost:4000',
+  interactiveConsent: false, // Auto-approve (default)
+});
+```
+
 ---
 
 ## Flow Diagram
@@ -323,6 +391,47 @@ This validates the complete end-to-end flow:
 - ✅ Resource server fetches JWKS and validates tokens
 - ✅ Client obtains tokens and accesses protected resources
 
+### Run Interactive Authorization Code Flow Test
+
+```bash
+npm run example:oauth:test-interactive
+```
+
+This validates the interactive OAuth 2.0 flow (6 tests):
+- ✅ Interactive consent enabled
+- ✅ Authorization redirects to consent page
+- ✅ Consent page is served correctly
+- ✅ User approval generates authorization code
+- ✅ Code exchange for tokens works
+- ✅ Tokens work to access protected resources
+
+### Run Edge Cases Test
+
+```bash
+npm run example:oauth:edge-cases
+```
+
+This validates error handling and edge cases (5 tests):
+- ✅ Missing authentication → 401 Unauthorized
+- ✅ Invalid token format → 401 Unauthorized
+- ✅ Valid credentials → 200 OK
+- ✅ Insufficient scope → 403 Forbidden
+- ✅ Wrong resource → 403 Forbidden
+
+### Run Token Revocation Test (RFC 7009)
+
+```bash
+npm run example:oauth:test-revocation
+```
+
+This validates token revocation functionality (6 tests):
+- ✅ Token is valid before revocation
+- ✅ Token revocation endpoint works
+- ✅ Returns HTTP 200 per RFC 7009
+- ✅ Handles invalid tokens gracefully
+- ✅ Accepts revocation without client auth (public clients)
+- ✅ Supports both access_token and refresh_token hints
+
 ---
 
 ## 🐛 Troubleshooting
@@ -439,6 +548,50 @@ await client.fetch('https://service1.example.com/mcp/tools');
 await client.fetch('https://service2.example.com/mcp/resources');
 ```
 
+### Use Case 3: Token Revocation (RFC 7009)
+
+```typescript
+// Logout or security event - revoke active tokens
+const client = new OAuthClient({
+  clientId: 'your_client_id',
+  clientSecret: 'your_client_secret',
+  authorizationServer: 'https://auth.example.com',
+});
+
+// Get token
+const tokens = await client.getClientCredentialsToken('mcp.tools.read');
+
+// Use token for a while...
+await client.fetch('https://api.example.com/mcp/tools');
+
+// Revoke token when done or on logout
+await fetch('https://auth.example.com/oauth/revoke', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    token: tokens.access_token,
+    token_type_hint: 'access_token',
+    client_id: 'your_client_id',
+    client_secret: 'your_client_secret',
+  }),
+});
+
+console.log('Token revoked successfully');
+```
+
+**When to revoke tokens:**
+- User logout
+- Security breach detected
+- Client application uninstalled
+- Token no longer needed
+- Session timeout
+
+**Benefits:**
+- Improved security (invalidate compromised tokens)
+- Resource cleanup (remove unused tokens)
+- Compliance (GDPR, data privacy)
+- Audit trail (track token lifecycle)
+
 ---
 
 ## 🔒 Production Security Checklist
@@ -488,6 +641,7 @@ app.post('/oauth/token', tokenLimiter, ...);
 ## Further Reading
 
 - [RFC 6749](https://tools.ietf.org/html/rfc6749) - OAuth 2.0 Framework
+- [RFC 7009](https://tools.ietf.org/html/rfc7009) - Token Revocation
 - [RFC 7519](https://tools.ietf.org/html/rfc7519) - JSON Web Token (JWT)
 - [RFC 7636](https://tools.ietf.org/html/rfc7636) - PKCE
 - [RFC 7591](https://tools.ietf.org/html/rfc7591) - Dynamic Client Registration

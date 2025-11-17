@@ -16,6 +16,7 @@ import { PKCEService, PKCEStore, CodeChallengeMethod } from '../oauth/pkce.js';
 import { JWTService } from '../oauth/jwt.js';
 import { ClientRegistrationService } from '../oauth/registration.js';
 import { TokenIntrospectionService } from '../oauth/introspection.js';
+import { TokenRevocationService } from '../oauth/revocation.js';
 import { getResourceIndicatorService } from '../rfc8707/indicators.js';
 import { authenticate } from '../middleware/oauth.js';
 
@@ -44,9 +45,19 @@ export interface OAuthEndpointsConfig {
   introspectionService: TokenIntrospectionService;
 
   /**
+   * Token revocation service
+   */
+  revocationService: TokenRevocationService;
+
+  /**
    * PKCE store
    */
   pkceStore: PKCEStore;
+
+  /**
+   * Enable interactive consent page (default: false)
+   */
+  interactiveConsent?: boolean;
 }
 
 /**
@@ -194,6 +205,34 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
         resources = validation.resources;
       }
 
+      // If interactive consent is enabled, show consent page
+      if (config.interactiveConsent) {
+        // Build consent page URL with parameters
+        const consentUrl = new URL('/static/consent.html', config.issuer);
+        consentUrl.searchParams.set('client_id', client_id);
+        consentUrl.searchParams.set('redirect_uri', redirect_uri);
+        if (scope && typeof scope === 'string') {
+          consentUrl.searchParams.set('scope', scope);
+        }
+        if (state && typeof state === 'string') {
+          consentUrl.searchParams.set('state', state);
+        }
+        if (resource) {
+          const resourceArray = Array.isArray(resource) ? resource : [resource];
+          resourceArray.forEach(r => consentUrl.searchParams.append('resource', r as string));
+        }
+        if (code_challenge && typeof code_challenge === 'string') {
+          consentUrl.searchParams.set('code_challenge', code_challenge);
+        }
+        if (challengeMethod) {
+          consentUrl.searchParams.set('code_challenge_method', challengeMethod);
+        }
+
+        // Redirect to consent page
+        return res.redirect(consentUrl.toString());
+      }
+
+      // Auto-approve (for non-interactive flows or testing)
       // Generate authorization code
       const code = generateAuthorizationCode();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -223,6 +262,94 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
       res.status(500).json({
         error: 'server_error',
         error_description: error instanceof Error ? error.message : 'Authorization failed',
+      });
+    }
+  });
+
+  /**
+   * Authorization approval endpoint
+   * GET /oauth/authorize/approve
+   *
+   * Handles user consent approval (called from consent page)
+   */
+  router.get('/oauth/authorize/approve', async (req: Request, res: Response) => {
+    try {
+      const {
+        client_id,
+        redirect_uri,
+        scope,
+        state,
+        code_challenge,
+        code_challenge_method,
+        resource,
+      } = req.query;
+
+      // Validate required parameters
+      if (!client_id || typeof client_id !== 'string') {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing or invalid client_id',
+        });
+      }
+
+      if (!redirect_uri || typeof redirect_uri !== 'string') {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing or invalid redirect_uri',
+        });
+      }
+
+      // Validate resource indicators (RFC 8707)
+      let resources: string[] | undefined;
+      if (resource) {
+        const resourceArray = Array.isArray(resource) ? resource : [resource];
+        const validation = resourceService.validateResourceRequest({
+          resource: resourceArray as string[],
+          scope: typeof scope === 'string' ? scope : undefined,
+        });
+
+        if (!validation.valid) {
+          return res.status(400).json({
+            error: 'invalid_target',
+            error_description: validation.errors?.join(', '),
+          });
+        }
+
+        resources = validation.resources;
+      }
+
+      const challengeMethod =
+        typeof code_challenge_method === 'string' ? code_challenge_method : 'S256';
+
+      // Generate authorization code
+      const code = generateAuthorizationCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      authorizationCodes.set(code, {
+        code,
+        clientId: client_id,
+        redirectUri: redirect_uri,
+        scopes: typeof scope === 'string' ? scope.split(' ') : [],
+        resources,
+        codeChallenge: typeof code_challenge === 'string' ? code_challenge : undefined,
+        codeChallengeMethod: challengeMethod,
+        expiresAt,
+        used: false,
+      });
+
+      // Build redirect URL
+      const redirectUrl = new URL(redirect_uri);
+      redirectUrl.searchParams.set('code', code);
+      if (state && typeof state === 'string') {
+        redirectUrl.searchParams.set('state', state);
+      }
+
+      // Redirect back to client with authorization code
+      res.redirect(redirectUrl.toString());
+    } catch (error) {
+      res.status(500).json({
+        error: 'server_error',
+        error_description: error instanceof Error ? error.message : 'Authorization approval failed',
       });
     }
   });
@@ -468,6 +595,31 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
         error: 'server_error',
         error_description: error instanceof Error ? error.message : 'Introspection failed',
       });
+    }
+  });
+
+  /**
+   * Token Revocation endpoint (RFC 7009)
+   * POST /oauth/revoke
+   *
+   * Allows clients to notify the authorization server that a previously
+   * obtained token is no longer needed and should be invalidated.
+   */
+  router.post('/oauth/revoke', async (req: Request, res: Response) => {
+    try {
+      const result = await config.revocationService.revokeToken(req.body);
+
+      // RFC 7009: The authorization server responds with HTTP 200
+      // regardless of whether the token was successfully revoked
+      // or if the client submitted an invalid token
+      res.status(200).json(result.success ? {} : {
+        error: result.error,
+        error_description: result.error_description,
+      });
+    } catch (error) {
+      // Per RFC 7009, return 200 even on error to prevent token scanning
+      console.error('[OAuth] Revocation error:', error);
+      res.status(200).json({});
     }
   });
 
