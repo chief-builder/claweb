@@ -8,6 +8,7 @@
  * - Invalid resource indicators
  */
 
+import { performance } from 'perf_hooks';
 import { AuthorizationServer } from '../../src/auth/authorization-server/server.js';
 import { HttpResourceServerTransport } from '../../src/transport/http/resource-server-transport.js';
 import { TransportType } from '../../src/transport/base.js';
@@ -18,8 +19,12 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function main() {
+  const startTime = performance.now();
+
   console.log('\n═══════════════════════════════════════════════════════');
   console.log('OAuth Edge Cases & Error Handling Test');
+  console.log('═══════════════════════════════════════════════════════');
+  console.log(`Started at: ${new Date().toISOString()}`);
   console.log('═══════════════════════════════════════════════════════\n');
 
   // Start servers
@@ -300,6 +305,8 @@ async function main() {
   await resourceServer.close();
   await authServer.stop();
 
+  const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+
   // Results
   console.log('═══════════════════════════════════════════════════════');
   if (failedTests === 0) {
@@ -310,6 +317,8 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════');
   console.log(`  Passed: ${passedTests}/5`);
   console.log(`  Failed: ${failedTests}/5`);
+  console.log(`  Duration: ${duration}s`);
+  console.log(`  Finished at: ${new Date().toISOString()}`);
   console.log('');
 
   console.log('Error Handling Summary:');

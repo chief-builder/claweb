@@ -9,6 +9,7 @@
  * 5. Verify revocation info is stored correctly
  */
 
+import { performance } from 'perf_hooks';
 import { AuthorizationServer } from '../../src/auth/authorization-server/server.js';
 import { OAuthClient } from '../../src/auth/client/oauth-client.js';
 
@@ -17,8 +18,12 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function main() {
+  const startTime = performance.now();
+
   console.log('\n═══════════════════════════════════════════════════════');
   console.log('RFC 7009 Token Revocation Test');
+  console.log('═══════════════════════════════════════════════════════');
+  console.log(`Started at: ${new Date().toISOString()}`);
   console.log('═══════════════════════════════════════════════════════\n');
 
   let passedTests = 0;
@@ -226,6 +231,8 @@ async function main() {
   // Cleanup
   await authServer.stop();
 
+  const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+
   // Results
   console.log('═══════════════════════════════════════════════════════');
   if (failedTests === 0) {
@@ -236,6 +243,8 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════');
   console.log(`  Passed: ${passedTests}/6`);
   console.log(`  Failed: ${failedTests}/6`);
+  console.log(`  Duration: ${duration}s`);
+  console.log(`  Finished at: ${new Date().toISOString()}`);
   console.log('');
 
   console.log('RFC 7009 Token Revocation Summary:');
