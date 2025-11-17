@@ -62,6 +62,18 @@ async function main() {
   console.log('  Expires in:', tokens.expires_in, 'seconds');
   console.log('  Scopes:', tokens.scope);
   console.log('  Resources:', tokens.resource);
+  console.log('  Access token (preview):', tokens.access_token.substring(0, 50) + '...');
+
+  // Decode JWT to show payload (for demonstration)
+  try {
+    const parts = tokens.access_token.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      console.log('  Token payload:', JSON.stringify(payload, null, 4));
+    }
+  } catch (e) {
+    // Ignore decode errors
+  }
   console.log('');
 
   // Step 5: Access protected MCP resource
