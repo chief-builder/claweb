@@ -4,7 +4,9 @@
 
 Implements complete OAuth 2.1 authentication with RFC 8707 Resource Indicators for MCP servers, following the three-role architecture prescribed by the OAuth 2.1 specification.
 
-**Key Achievement**: Full end-to-end OAuth flow with authorization server, resource server, and client - all working together with proper token issuance, JWKS-based validation, and protected resource access.
+**Key Achievement**: Full end-to-end OAuth flow with authorization server, resource server, and client - all working together with proper token issuance, JWKS-based validation, interactive consent UI, token revocation, and protected resource access.
+
+**Test Coverage**: 37/37 tests passing (100%) across all OAuth features including authorization code flow, client credentials, token revocation, error handling, and interactive consent.
 
 ## What's New
 
@@ -23,9 +25,11 @@ Cleanly separated OAuth functionality into three distinct roles per OAuth 2.1 sp
 - ✅ **Authorization Server Metadata Discovery** (RFC 8414)
 - ✅ **PKCE** (RFC 7636) for authorization code flow
 - ✅ **Token Introspection** (RFC 7662)
+- ✅ **Token Revocation** (RFC 7009)
 - ✅ **Resource Indicators** (RFC 8707) for fine-grained access control
 - ✅ **JWKS Endpoint** for public key distribution
 - ✅ **Multiple Grant Types**: authorization_code, client_credentials, refresh_token
+- ✅ **Interactive Consent UI** - HTML-based authorization approval flow
 
 ### 🚀 Key Technical Improvements
 
@@ -51,11 +55,18 @@ Cleanly separated OAuth functionality into three distinct roles per OAuth 2.1 sp
 - `src/auth/resource-server/middleware.ts` - Token validation middleware
 - `src/auth/client/oauth-client.ts` - OAuth client implementation
 - `src/transport/http/resource-server-transport.ts` - MCP server as resource server
+- `src/auth/oauth/revocation.ts` - RFC 7009 token revocation implementation
 - `examples/oauth-roles/01-authorization-server.ts` - Auth server example
 - `examples/oauth-roles/02-resource-server.ts` - Resource server example
 - `examples/oauth-roles/03-oauth-client.ts` - Client example
-- `examples/oauth-roles/test-complete-flow.ts` - Integration test
-- `examples/oauth-roles/README.md` - OAuth documentation (exists from previous work)
+- `examples/oauth-roles/04-interactive-demo.ts` - Interactive consent UI demo
+- `examples/oauth-roles/static/consent.html` - HTML consent page
+- `examples/oauth-roles/test-complete-flow.ts` - Complete flow integration test
+- `examples/oauth-roles/test-interactive-flow.ts` - Interactive flow test (6 tests)
+- `examples/oauth-roles/test-edge-cases.ts` - Error handling test (5 tests)
+- `examples/oauth-roles/test-token-revocation.ts` - Revocation test (6 tests)
+- `examples/oauth-roles/README.md` - Comprehensive OAuth documentation
+- `OAUTH.md` - OAuth implementation guide
 
 ### Modified Files
 - `src/auth/oauth/jwt.ts` - Added public-key-only mode, unique jti
@@ -70,9 +81,28 @@ Cleanly separated OAuth functionality into three distinct roles per OAuth 2.1 sp
 ### All Tests Passing ✅
 
 ```bash
+# Core OAuth tests (Vitest)
 npm test tests/oauth.test.ts
 # Result: 20/20 tests passing
+
+# Complete flow integration test
+npm run example:oauth:test-flow
+# Result: All flows working
+
+# Interactive authorization code flow with consent UI
+npm run example:oauth:test-interactive
+# Result: 6/6 tests passing
+
+# Edge cases and error handling
+npm run example:oauth:edge-cases
+# Result: 5/5 tests passing
+
+# Token revocation (RFC 7009)
+npm run example:oauth:test-revocation
+# Result: 6/6 tests passing
 ```
+
+**Total: 37/37 tests passing (100%)**
 
 **Test Coverage**:
 - OAuth Server Discovery (RFC 8414)
@@ -80,23 +110,15 @@ npm test tests/oauth.test.ts
 - Dynamic Client Registration (RFC 7591)
 - PKCE generation and validation (RFC 7636)
 - Authorization Code Flow with PKCE
+- Interactive consent UI flow
 - Client Credentials Grant
 - Refresh Token Grant
 - Token Introspection (RFC 7662)
+- Token Revocation (RFC 7009)
 - Resource Indicators (RFC 8707)
+- Error handling (401, 403 responses)
+- Scope and resource enforcement
 - Health checks
-
-### Integration Test
-
-```bash
-npm run example:oauth:test-flow
-```
-
-**Validates**:
-- ✅ Authorization server issues tokens
-- ✅ Resource server fetches JWKS and validates tokens
-- ✅ Client obtains tokens and accesses protected resources
-- ✅ Complete end-to-end flow working
 
 ## Usage Examples
 
@@ -180,20 +202,24 @@ npm run example:oauth:client
 
 ### Implemented
 - ✅ RS256 JWT signing with 2048-bit RSA keys
-- ✅ PKCE for authorization code flow
+- ✅ PKCE for authorization code flow (S256 method)
 - ✅ Token expiration (1 hour default)
-- ✅ Unique JWT IDs to prevent reuse
-- ✅ Proper OAuth error responses
-- ✅ Scope and resource validation
+- ✅ Unique JWT IDs (jti) to prevent token reuse
+- ✅ Token revocation (RFC 7009) with blacklist
+- ✅ Interactive consent UI for user authorization
+- ✅ Proper OAuth error responses (401, 403)
+- ✅ Scope and resource indicator validation
 - ✅ Public key distribution via JWKS
+- ✅ Authorization code one-time use enforcement
 
 ### For Production
 - 🔸 Use persistent storage (Redis/database) instead of in-memory
-- 🔸 Implement token revocation
 - 🔸 Add rate limiting on token endpoints
-- 🔸 Enable HTTPS in production
+- 🔸 Enable HTTPS in production (required)
 - 🔸 Implement key rotation strategy
 - 🔸 Add comprehensive audit logging
+- 🔸 Implement refresh token rotation
+- 🔸 Add monitoring and alerting
 
 ## Breaking Changes
 
@@ -218,7 +244,11 @@ npm run example:oauth:client
 6. `c194e73` - Fix OAuth tests for role-separated architecture (20/20 passing)
 7. `2589f28` - Add JWKS fetching for OAuth resource server
 8. `f5c6dda` - Enhance OAuth client example with token details
-9. `c0e2c9b` - Fix JWTService to support public-key-only mode
+9. `c0e2c9b` - Fix JWTService to support public-key-only mode for resource servers
+10. `5ee5afd` - Add comprehensive PR description for OAuth 2.1 implementation
+11. `57d6884` - Complete OAuth documentation and verification
+12. `628f989` - Add interactive OAuth 2.0 authorization code flow with HTML consent UI
+13. `dfa7464` - Implement RFC 7009 Token Revocation
 
 ## Reviewer Notes
 
@@ -236,26 +266,34 @@ npm run example:oauth:client
 # Build
 npm run build
 
-# Run OAuth tests (should show 20/20 passing)
-npm test tests/oauth.test.ts
-
-# Run complete integration test
-npm run example:oauth:test-flow
+# Run all tests (37/37 total)
+npm test tests/oauth.test.ts                # Core OAuth tests (20/20)
+npm run example:oauth:test-flow             # Complete flow test
+npm run example:oauth:test-interactive      # Interactive flow (6/6)
+npm run example:oauth:edge-cases            # Edge cases (5/5)
+npm run example:oauth:test-revocation       # Token revocation (6/6)
 
 # Or test examples manually in separate terminals
-npm run example:oauth:auth-server    # Terminal 1
-npm run example:oauth:resource-server # Terminal 2
-npm run example:oauth:client          # Terminal 3
+npm run example:oauth:auth-server           # Terminal 1
+npm run example:oauth:resource-server       # Terminal 2
+npm run example:oauth:client                # Terminal 3
+
+# Interactive demo with consent UI
+npm run example:oauth:interactive           # Opens browser on :8080
 ```
 
 ### What to Verify
 
-- ✅ All tests pass
-- ✅ Integration test completes successfully
+- ✅ All 37 tests pass (100%)
+- ✅ Integration tests complete successfully
+- ✅ Interactive consent UI works in browser
 - ✅ Examples show tokens being validated correctly
 - ✅ JWKS fetching works (check resource server logs)
 - ✅ Protected resources return 401 without valid tokens
+- ✅ Protected resources return 403 with insufficient scopes
 - ✅ Protected resources return data with valid tokens
+- ✅ Token revocation prevents further use of revoked tokens
+- ✅ Edge cases handled correctly (invalid tokens, wrong resources, etc.)
 
 ## Related Issues
 
