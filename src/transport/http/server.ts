@@ -25,6 +25,35 @@ import {
   getProtocolVersionHeader,
 } from './headers.js';
 import { SSEStreamManager, type SSEStream } from './streaming.js';
+import {
+  createOAuthRouter,
+  configureOAuth,
+  type OAuthEndpointsConfig,
+} from '../../auth/index.js';
+import { JWTService } from '../../auth/oauth/jwt.js';
+import { ClientRegistrationService, InMemoryClientStore, type ClientStore } from '../../auth/oauth/registration.js';
+import { TokenIntrospectionService } from '../../auth/oauth/introspection.js';
+import { InMemoryPKCEStore, type PKCEStore } from '../../auth/oauth/pkce.js';
+
+/**
+ * OAuth configuration for HTTP transport
+ */
+export interface HttpTransportOAuthConfig {
+  /**
+   * Enable OAuth 2.0 authentication
+   */
+  enabled: boolean;
+
+  /**
+   * JWT service (auto-created if not provided)
+   */
+  jwtService?: JWTService;
+
+  /**
+   * Base URL for OAuth issuer (e.g., "http://localhost:3000")
+   */
+  issuer?: string;
+}
 
 /**
  * HTTP Server Transport implementation
@@ -39,16 +68,62 @@ export class HttpServerTransport implements ITransport {
   private _state: ConnectionState = ConnectionState.DISCONNECTED;
   private eventHandlers = new Map<keyof TransportEvents, Set<Function>>();
   private config: TransportConfig | null = null;
+  private oauthConfig: HttpTransportOAuthConfig | null = null;
 
   // Message handler for incoming MCP messages
   private messageHandler?: (message: any) => Promise<any>;
 
-  constructor(protocolVersion: string = MCP_PROTOCOL_VERSION) {
+  // OAuth services
+  private jwtService?: JWTService;
+  private clientStore?: ClientStore;
+  private registrationService?: ClientRegistrationService;
+  private introspectionService?: TokenIntrospectionService;
+  private pkceStore?: PKCEStore;
+
+  constructor(
+    protocolVersion: string = MCP_PROTOCOL_VERSION,
+    oauthConfig?: HttpTransportOAuthConfig
+  ) {
     this.protocolVersion = protocolVersion;
+    this.oauthConfig = oauthConfig || null;
     this.app = express();
     this.streamManager = new SSEStreamManager();
+
+    // Initialize OAuth services if enabled
+    if (this.oauthConfig?.enabled) {
+      this.initializeOAuth();
+    }
+
     this.setupMiddleware();
     this.setupRoutes();
+  }
+
+  /**
+   * Initialize OAuth services
+   */
+  private initializeOAuth(): void {
+    if (!this.oauthConfig) {
+      return;
+    }
+
+    console.error('[HTTP] Initializing OAuth 2.0 / RFC 8707...');
+
+    // Create JWT service
+    this.jwtService = this.oauthConfig.jwtService || new JWTService();
+
+    // Create other OAuth services
+    this.clientStore = new InMemoryClientStore();
+    this.registrationService = new ClientRegistrationService(this.clientStore);
+    this.introspectionService = new TokenIntrospectionService(this.jwtService, this.registrationService);
+    this.pkceStore = new InMemoryPKCEStore();
+
+    // Configure OAuth middleware
+    configureOAuth({
+      jwtService: this.jwtService,
+      enabled: true,
+    });
+
+    console.error('[HTTP] OAuth services initialized');
   }
 
   get state(): ConnectionState {
@@ -104,6 +179,7 @@ export class HttpServerTransport implements ITransport {
         protocolVersion: this.protocolVersion,
         transport: 'http',
         activeStreams: this.streamManager.getActiveStreamCount(),
+        oauth: this.oauthConfig?.enabled || false,
       });
     });
 
@@ -120,7 +196,7 @@ export class HttpServerTransport implements ITransport {
     // Protocol discovery endpoint
     this.app.get('/protocol', (req, res) => {
       setJSONHeaders(res, this.protocolVersion);
-      res.json({
+      const protocolInfo: any = {
         protocol: 'MCP',
         version: this.protocolVersion,
         transports: ['http', 'sse'],
@@ -129,8 +205,48 @@ export class HttpServerTransport implements ITransport {
           message: '/message',
           health: '/health',
         },
-      });
+      };
+
+      // Add OAuth endpoints if enabled
+      if (this.oauthConfig?.enabled) {
+        protocolInfo.oauth = {
+          enabled: true,
+          endpoints: {
+            authorization: '/oauth/authorize',
+            token: '/oauth/token',
+            registration: '/oauth/register',
+            introspection: '/oauth/introspect',
+            jwks: '/oauth/jwks',
+            discovery: '/.well-known/oauth-authorization-server',
+            resources: '/oauth/resources',
+          },
+        };
+      }
+
+      res.json(protocolInfo);
     });
+
+    // OAuth endpoints (if enabled)
+    if (
+      this.oauthConfig?.enabled &&
+      this.jwtService &&
+      this.registrationService &&
+      this.introspectionService &&
+      this.pkceStore
+    ) {
+      const issuer = this.oauthConfig.issuer || 'http://localhost:3000';
+
+      const oauthRouter = createOAuthRouter({
+        issuer,
+        jwtService: this.jwtService,
+        registrationService: this.registrationService,
+        introspectionService: this.introspectionService,
+        pkceStore: this.pkceStore,
+      });
+
+      this.app.use(oauthRouter);
+      console.error('[HTTP] OAuth endpoints registered');
+    }
 
     // Error handler
     this.app.use(
