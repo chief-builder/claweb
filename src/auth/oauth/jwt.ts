@@ -102,10 +102,15 @@ export class JWTService {
     this.keyId = config?.keyId || this.generateKeyId();
 
     if (config?.privateKey && config?.publicKey) {
+      // Both keys provided - full functionality (signing + verification)
       this.privateKey = config.privateKey;
       this.publicKey = config.publicKey;
+    } else if (config?.publicKey) {
+      // Only public key provided - verification only (for resource servers)
+      this.privateKey = ''; // Not needed for verification
+      this.publicKey = config.publicKey;
     } else {
-      // Generate new key pair if not provided
+      // No keys provided - generate new key pair
       const keyPair = this.generateKeyPair();
       this.privateKey = keyPair.privateKey;
       this.publicKey = keyPair.publicKey;

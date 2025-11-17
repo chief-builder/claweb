@@ -22,6 +22,7 @@
     "example:oauth:auth-server": "tsx examples/oauth-roles/01-authorization-server.ts",
     "example:oauth:resource-server": "tsx examples/oauth-roles/02-resource-server.ts",
     "example:oauth:client": "tsx examples/oauth-roles/03-oauth-client.ts",
+    "example:oauth:test-flow": "tsx examples/oauth-roles/test-complete-flow.ts",
     "inspector": "npx @modelcontextprotocol/inspector node dist/server/index.js"
   },
   "keywords": [
