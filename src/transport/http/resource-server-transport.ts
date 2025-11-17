@@ -10,6 +10,7 @@
 import express, { type Express, type Request, type Response } from 'express';
 import cors from 'cors';
 import type { Server as HTTPServer } from 'http';
+import * as jose from 'jose';
 import {
   TransportType,
   ConnectionState,
@@ -33,6 +34,49 @@ import {
   type ResourceServerConfig,
 } from '../../auth/resource-server/middleware.js';
 import { JWTService } from '../../auth/oauth/jwt.js';
+
+/**
+ * Fetch JWKS from authorization server and extract public key
+ */
+async function fetchPublicKeyFromJWKS(jwksUrl: string): Promise<{ publicKey: string; keyId: string } | null> {
+  try {
+    const response = await fetch(jwksUrl);
+    if (!response.ok) {
+      console.error('[ResourceServer] Failed to fetch JWKS:', response.statusText);
+      return null;
+    }
+
+    const jwks = await response.json() as any;
+
+    if (!jwks.keys || !Array.isArray(jwks.keys) || jwks.keys.length === 0) {
+      console.error('[ResourceServer] No keys found in JWKS');
+      return null;
+    }
+
+    // Get the first signing key
+    const jwk = jwks.keys.find((key: any) => key.use === 'sig' || !key.use);
+
+    if (!jwk) {
+      console.error('[ResourceServer] No signing key found in JWKS');
+      return null;
+    }
+
+    // Convert JWK to PEM using jose library
+    const keyObject = await jose.importJWK(jwk, jwk.alg || 'RS256');
+    const publicKey = await jose.exportSPKI(keyObject as any);
+
+    console.error('[ResourceServer] Successfully fetched public key from JWKS');
+    console.error('[ResourceServer] Key ID:', jwk.kid);
+
+    return {
+      publicKey,
+      keyId: jwk.kid,
+    };
+  } catch (error) {
+    console.error('[ResourceServer] Error fetching JWKS:', error);
+    return null;
+  }
+}
 
 /**
  * Resource server configuration for HTTP transport
@@ -95,19 +139,17 @@ export class HttpResourceServerTransport implements ITransport {
     this.app = express();
     this.streamManager = new SSEStreamManager();
 
-    // Configure resource server if enabled
-    if (this.resourceServerConfig?.enabled) {
-      this.initializeResourceServer();
-    }
+    // Note: OAuth resource server will be initialized in initialize() method
+    // because it needs to fetch JWKS asynchronously
 
     this.setupMiddleware();
     this.setupRoutes();
   }
 
   /**
-   * Initialize resource server
+   * Initialize resource server (async to fetch JWKS)
    */
-  private initializeResourceServer(): void {
+  private async initializeResourceServer(): Promise<void> {
     if (!this.resourceServerConfig) {
       return;
     }
@@ -115,7 +157,32 @@ export class HttpResourceServerTransport implements ITransport {
     console.error('[ResourceServer] Initializing OAuth 2.0 Resource Server...');
     console.error('[ResourceServer] Authorization Server:', this.resourceServerConfig.authorizationServer);
 
-    const jwtService = this.resourceServerConfig.jwtService || new JWTService();
+    let jwtService = this.resourceServerConfig.jwtService;
+
+    // If no JWT service provided, fetch public key from authorization server
+    if (!jwtService) {
+      // Determine JWKS URL
+      const jwksUrl = this.resourceServerConfig.jwksUrl ||
+        `${this.resourceServerConfig.authorizationServer}/oauth/jwks`;
+
+      console.error('[ResourceServer] Fetching JWKS from:', jwksUrl);
+
+      const keyInfo = await fetchPublicKeyFromJWKS(jwksUrl);
+
+      if (keyInfo) {
+        // Create JWT service with the public key from authorization server
+        jwtService = new JWTService({
+          publicKey: keyInfo.publicKey,
+          keyId: keyInfo.keyId,
+          issuer: this.resourceServerConfig.authorizationServer,
+        });
+      } else {
+        throw new Error(
+          `Failed to fetch JWKS from ${jwksUrl}. ` +
+          'Ensure the authorization server is running and accessible.'
+        );
+      }
+    }
 
     const config: ResourceServerConfig = {
       jwtService,
@@ -339,6 +406,11 @@ export class HttpResourceServerTransport implements ITransport {
 
     this.config = config;
     this.setState(ConnectionState.CONNECTING);
+
+    // Initialize OAuth resource server (fetch JWKS if needed)
+    if (this.resourceServerConfig?.enabled) {
+      await this.initializeResourceServer();
+    }
 
     const host = config.host || 'localhost';
     const port = config.port || 3000;
