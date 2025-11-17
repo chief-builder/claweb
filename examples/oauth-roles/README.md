@@ -293,9 +293,207 @@ Internet
 
 ---
 
+## 🧪 Testing
+
+### Run All OAuth Tests (20 tests)
+
+```bash
+npm test tests/oauth.test.ts
+```
+
+All 20 tests should pass, covering:
+- OAuth server discovery (RFC 8414)
+- JWKS endpoint
+- Dynamic client registration (confidential & public clients)
+- PKCE generation and validation
+- Authorization code flow with PKCE
+- Client credentials grant
+- Refresh token grant
+- Token introspection
+- Resource indicators (RFC 8707)
+
+### Run Complete Integration Test
+
+```bash
+npm run example:oauth:test-flow
+```
+
+This validates the complete end-to-end flow:
+- ✅ Auth server issues tokens
+- ✅ Resource server fetches JWKS and validates tokens
+- ✅ Client obtains tokens and accesses protected resources
+
+---
+
+## 🐛 Troubleshooting
+
+### "invalid signature" Error
+
+**Cause**: Resource server can't validate token with auth server's public key
+
+**Solution**: Ensure resource server can fetch JWKS. Check logs for:
+```
+[ResourceServer] Fetching JWKS from: http://localhost:4000/oauth/jwks
+[ResourceServer] Successfully fetched public key from JWKS
+[ResourceServer] Key ID: abc123...
+```
+
+### "insufficient_scope" Error
+
+**Cause**: Token doesn't have required scope for endpoint
+
+**Solution**: Request correct scopes when obtaining token:
+```typescript
+const tokens = await client.getClientCredentialsToken(
+  'mcp.tools.read',  // ← Must match endpoint requirement
+  'mcp://tools'
+);
+```
+
+### "invalid_token - Token not authorized for resource"
+
+**Cause**: Token issued for different resource
+
+**Solution**: Request token for correct resource indicator:
+```typescript
+const tokens = await client.getClientCredentialsToken(
+  'mcp.tools.read',
+  'mcp://tools'  // ← Must match endpoint resource
+);
+```
+
+---
+
+## 📚 Token Structure
+
+### Access Token (JWT)
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "key-id-here"
+}
+.
+{
+  "iss": "http://localhost:4000",
+  "sub": "client_abc123",
+  "client_id": "client_abc123",
+  "scope": "mcp.tools.read",
+  "resource": ["mcp://tools"],
+  "iat": 1234567890,
+  "exp": 1234571490,
+  "jti": "unique-token-id",
+  "token_type": "access_token"
+}
+.
+[signature]
+```
+
+### Token Response
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "eyJhbGciOiJSUzI1NiIs...",
+  "scope": "mcp.tools.read",
+  "resource": ["mcp://tools"]
+}
+```
+
+---
+
+## 💡 Common Use Cases
+
+### Use Case 1: Server-to-Server API Access
+
+```typescript
+// Service A accessing MCP Service B
+const client = new OAuthClient({
+  clientId: process.env.OAUTH_CLIENT_ID,
+  clientSecret: process.env.OAUTH_CLIENT_SECRET,
+  authorizationServer: 'https://auth.example.com',
+});
+
+const tokens = await client.getClientCredentialsToken(
+  'mcp.tools.execute',
+  'mcp://tools'
+);
+
+const response = await client.fetch('https://mcp-service.example.com/mcp/tools');
+```
+
+### Use Case 2: Multi-Resource Access
+
+```typescript
+// Request tokens for multiple resources
+const tokens = await client.getClientCredentialsToken(
+  'mcp.tools.read mcp.resources.read',
+  ['mcp://tools', 'mcp://resources']
+);
+
+// Token is valid for both resources
+await client.fetch('https://service1.example.com/mcp/tools');
+await client.fetch('https://service2.example.com/mcp/resources');
+```
+
+---
+
+## 🔒 Production Security Checklist
+
+✅ **HTTPS Everywhere**
+```typescript
+const authServer = new AuthorizationServer({
+  host: 'auth.example.com',
+  port: 443,
+  issuer: 'https://auth.example.com',
+  https: {
+    key: fs.readFileSync('privkey.pem'),
+    cert: fs.readFileSync('cert.pem'),
+  },
+});
+```
+
+✅ **Rate Limiting**
+```typescript
+import rateLimit from 'express-rate-limit';
+
+const tokenLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests
+});
+
+app.post('/oauth/token', tokenLimiter, ...);
+```
+
+✅ **Persistent Storage**
+- Replace in-memory stores with database (PostgreSQL, MongoDB)
+- Use Redis for tokens and authorization codes
+- Implement token revocation lists
+
+✅ **Audit Logging**
+- Log all OAuth operations (token issuance, validation, errors)
+- Include client_id, grant_type, IP, timestamp
+- Monitor for suspicious patterns
+
+✅ **Key Rotation**
+- Implement automatic key rotation (e.g., monthly)
+- Support multiple active keys in JWKS
+- Graceful key rollover period
+
+---
+
 ## Further Reading
 
 - [RFC 6749](https://tools.ietf.org/html/rfc6749) - OAuth 2.0 Framework
+- [RFC 7519](https://tools.ietf.org/html/rfc7519) - JSON Web Token (JWT)
+- [RFC 7636](https://tools.ietf.org/html/rfc7636) - PKCE
+- [RFC 7591](https://tools.ietf.org/html/rfc7591) - Dynamic Client Registration
+- [RFC 7662](https://tools.ietf.org/html/rfc7662) - Token Introspection
+- [RFC 8414](https://tools.ietf.org/html/rfc8414) - Authorization Server Metadata
 - [RFC 8707](https://tools.ietf.org/html/rfc8707) - Resource Indicators
-- [OAuth 2.1](https://oauth.net/2.1/) - OAuth 2.1 (upcoming)
+- [OAuth 2.1](https://oauth.net/2.1/) - OAuth 2.1 (draft)
 - [MCP Specification](https://modelcontextprotocol.io)
+- [JWT.io](https://jwt.io/) - Decode and verify JWTs

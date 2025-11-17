@@ -134,6 +134,59 @@ The intelligent agent:
 
 See [INTELLIGENT_AGENT.md](./INTELLIGENT_AGENT.md) for detailed documentation.
 
+## 🔐 OAuth 2.1 Authentication (NEW!)
+
+Full OAuth 2.1 implementation with RFC 8707 Resource Indicators for secure MCP server access.
+
+### Three-Role Architecture
+
+1. **Authorization Server** - Issues JWT access tokens
+2. **Resource Server** - Validates tokens, serves protected MCP resources
+3. **OAuth Client** - Obtains and uses tokens
+
+### Quick Start
+
+```bash
+# Test complete OAuth flow
+npm run example:oauth:test-flow
+
+# Or run components separately:
+npm run example:oauth:auth-server    # Terminal 1
+npm run example:oauth:resource-server # Terminal 2
+npm run example:oauth:client          # Terminal 3
+```
+
+### Features
+
+✅ **JWT Bearer Tokens** (RS256, 2048-bit RSA)
+✅ **PKCE** (RFC 7636) for authorization code flow
+✅ **Dynamic Client Registration** (RFC 7591)
+✅ **Token Introspection** (RFC 7662)
+✅ **Resource Indicators** (RFC 8707) for fine-grained access
+✅ **JWKS** endpoint for public key distribution
+✅ **20/20 tests passing** with complete coverage
+
+### Example Output
+
+```
+✓ Access token obtained
+  Token payload: {
+    "iss": "http://localhost:4000",
+    "scope": "mcp.tools.read",
+    "resource": ["mcp://tools"]
+  }
+
+✓ Successfully accessed /mcp/tools
+  Tools: [{"name": "calculator", ...}]
+```
+
+**Documentation**: See [examples/oauth-roles/README.md](./examples/oauth-roles/README.md) for complete guide including:
+- Architecture diagrams
+- Security best practices
+- Production deployment guide
+- Troubleshooting
+- Token structure details
+
 ## 📦 Features
 
 ### Tools
