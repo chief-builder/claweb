@@ -1,10 +1,50 @@
 /**
  * Authentication and Authorization Module
  *
- * Provides OAuth 2.0 and RFC 8707 support for MCP
+ * Provides OAuth 2.0 and RFC 8707 support for MCP with clean role separation:
+ * - Authorization Server: Issues tokens
+ * - Resource Server: Validates tokens and serves protected resources
+ * - Client: Obtains and uses tokens
  */
 
-// OAuth 2.0 Core
+// ============================================================================
+// OAuth 2.0 Role Separation
+// ============================================================================
+
+// Authorization Server (issues tokens)
+export { AuthorizationServer, createAuthorizationServer } from './authorization-server/server.js';
+export type { AuthorizationServerConfig } from './authorization-server/server.js';
+
+// Resource Server (validates tokens, serves protected resources)
+export { HttpResourceServerTransport } from '../transport/http/resource-server-transport.js';
+export type { HttpResourceServerConfig } from '../transport/http/resource-server-transport.js';
+export {
+  configureResourceServer,
+  validateAccessToken,
+  requireScopes,
+  requireResource,
+  authorizeResourceAccess,
+  protectResource,
+} from './resource-server/middleware.js';
+export type {
+  ResourceServerRequest,
+  ResourceServerOptions,
+  ResourceServerConfig,
+} from './resource-server/middleware.js';
+
+// OAuth Client (obtains and uses tokens)
+export { OAuthClient, createOAuthClient } from './client/oauth-client.js';
+export type {
+  OAuthClientConfig,
+  TokenSet,
+  AuthorizationUrlParams,
+} from './client/oauth-client.js';
+
+// ============================================================================
+// OAuth 2.0 Core Components (shared by all roles)
+// ============================================================================
+
+// Discovery (RFC 8414)
 export { OAuthDiscoveryService } from './oauth/discovery.js';
 export type { AuthorizationServerMetadata } from './oauth/discovery.js';
 

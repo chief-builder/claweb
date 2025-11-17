@@ -19,6 +19,9 @@
     "dev:agent": "tsx src/agent/simple-agent.ts",
     "dev:agent:intelligent": "tsx src/agent/intelligent-agent.ts",
     "example:interactive": "tsx src/examples/interactive-agent.ts",
+    "example:oauth:auth-server": "tsx examples/oauth-roles/01-authorization-server.ts",
+    "example:oauth:resource-server": "tsx examples/oauth-roles/02-resource-server.ts",
+    "example:oauth:client": "tsx examples/oauth-roles/03-oauth-client.ts",
     "inspector": "npx @modelcontextprotocol/inspector node dist/server/index.js"
   },
   "keywords": [
