@@ -201,27 +201,42 @@ export class AuthorizationServer {
     const port = this.config.port || 4000;
 
     return new Promise((resolve, reject) => {
+      let resolved = false;
+
       try {
+        // Set up error handler before listen() to catch immediate errors
+        const errorHandler = (error: Error) => {
+          if (!resolved) {
+            resolved = true;
+            console.error('[AuthServer] Failed to start server:', error);
+            this.server = null;
+            reject(error);
+          }
+        };
+
         this.server = this.app.listen(port, host, () => {
-          console.error('');
-          console.error('═══════════════════════════════════════════════════════');
-          console.error('  OAuth 2.0 Authorization Server');
-          console.error('═══════════════════════════════════════════════════════');
-          console.error(`  Issuer:    ${this.config.issuer}`);
-          console.error(`  Address:   http://${host}:${port}`);
-          console.error(`  Discovery: ${this.config.issuer}/.well-known/oauth-authorization-server`);
-          console.error(`  JWKS:      ${this.config.issuer}/oauth/jwks`);
-          console.error('═══════════════════════════════════════════════════════');
-          console.error('');
-          resolve();
+          if (!resolved) {
+            resolved = true;
+            console.error('');
+            console.error('═══════════════════════════════════════════════════════');
+            console.error('  OAuth 2.0 Authorization Server');
+            console.error('═══════════════════════════════════════════════════════');
+            console.error(`  Issuer:    ${this.config.issuer}`);
+            console.error(`  Address:   http://${host}:${port}`);
+            console.error(`  Discovery: ${this.config.issuer}/.well-known/oauth-authorization-server`);
+            console.error(`  JWKS:      ${this.config.issuer}/oauth/jwks`);
+            console.error('═══════════════════════════════════════════════════════');
+            console.error('');
+            resolve();
+          }
         });
 
-        this.server.on('error', (error) => {
-          console.error('[AuthServer] Server error:', error);
-          reject(error);
-        });
+        this.server.on('error', errorHandler);
       } catch (error) {
-        reject(error);
+        if (!resolved) {
+          resolved = true;
+          reject(error);
+        }
       }
     });
   }
