@@ -7,10 +7,197 @@ This document outlines enhancements needed to support enterprise internal use ca
 
 | Persona | App | MCP Server | Key Requirements |
 |---------|-----|------------|------------------|
-| Developer | IDE (VSCode) | Internal code search | User attribution, long-lived sessions, SSO |
-| Data Analyst | Jupyter Notebook | Third-party data warehouse | Auto-refresh, cost tracking, fine-grained permissions |
-| CS Rep | Custom UI App | Enterprise knowledge base | User delegation, audit trails, session management |
-| Executive | Dashboard | Analytics/billing | Usage metrics, cost allocation, budget controls |
+| Developer | IDE (VSCode/Cursor) | GitHub MCP, Playwright MCP (Third-party) | User attribution, long-lived sessions, SSO, multi-server access |
+| Data Analyst | Jupyter Notebook | Third-party data warehouse (Snowflake) | Auto-refresh, cost tracking, fine-grained permissions |
+| CS Rep | Custom UI App | Enterprise knowledge base, CRM | User delegation, audit trails, session management |
+| Executive | Dashboard | Analytics/billing MCP | Usage metrics, cost allocation, budget controls |
+
+---
+
+## 🎯 Scenario Analysis
+
+### Scenario 1: Developer in IDE (VSCode/Cursor)
+
+**MCP Servers**:
+- **GitHub MCP Server** (Third-party) - Repository operations, code search, PRs, issues, commits
+- **Playwright MCP Server** (Third-party) - Browser automation, screenshots, testing, debugging
+
+**Current Flow**:
+```typescript
+// Developer needs to access GitHub and Playwright MCP servers from IDE
+const githubClient = new OAuthClient({
+  clientId: 'vscode-extension-12345',
+  authorizationServer: 'https://auth.company.internal',
+  scopes: ['github.repo.read', 'github.issues.write']
+});
+
+const playwrightClient = new OAuthClient({
+  clientId: 'vscode-extension-12345',
+  authorizationServer: 'https://auth.company.internal',
+  scopes: ['playwright.browser.control', 'playwright.screenshots']
+});
+
+// Problem 1: Each MCP server requires separate authentication
+// Problem 2: No user context (shows "vscode-extension" not "Alice")
+// Problem 3: Tokens expire during long coding sessions
+```
+
+**Real-World Developer Workflow**:
+```typescript
+// Developer Alice wants to:
+// 1. Search GitHub repos for code examples → GitHub MCP
+// 2. Create a new PR with changes → GitHub MCP
+// 3. Run Playwright test to verify UI → Playwright MCP
+// 4. Take screenshot of results → Playwright MCP
+
+// Current issues:
+// ❌ Alice authenticates 2+ times (once per MCP server)
+// ❌ GitHub API shows requests from "vscode-extension" not "Alice"
+// ❌ Playwright screenshots aren't attributed to Alice's project
+// ❌ After 1 hour, tokens expire and Alice must re-authenticate
+// ❌ No audit trail showing Alice accessed customer repo
+```
+
+**Gaps Identified**:
+1. ❌ **No user-specific token** (only client credentials) - Can't tell which developer made API calls
+2. ❌ **No unified SSO** - Developer authenticates multiple times for different MCP servers
+3. ❌ **Token expiration breaks flow** - Long coding sessions interrupted by auth prompts
+4. ❌ **No audit trail** - Can't track "Alice accessed customer-data repo via GitHub MCP"
+5. ❌ **No cost attribution** - Can't charge Alice's team for Playwright test runs
+
+**After Enhancements**:
+```typescript
+// Enhancement 1 + 2: SSO + Token Exchange
+// Developer logs in once via SSO (Azure AD)
+const ssoToken = await vscode.authentication.getSession('microsoft');
+
+// IDE exchanges SSO token for MCP tokens (with user context)
+const githubToken = await oauthClient.exchangeToken({
+  subjectToken: ssoToken.accessToken,
+  scope: 'github.repo.read github.issues.write',
+  resource: 'mcp://github',
+  actor_token: 'vscode-extension-token'
+});
+
+// Token includes: { sub: 'alice@company.com', act: { sub: 'vscode-ext' } }
+// GitHub MCP sees: "Alice via VSCode" not just "VSCode"
+
+// Enhancement 4: Auto-refresh
+// Token automatically refreshes at 45 minutes (before 1 hour expiry)
+// Alice codes for 8 hours without re-authentication
+
+// Enhancement 3: Usage tracking
+// Every API call logged:
+// - alice@company.com accessed mcp://github/search at 2024-11-19 10:30
+// - alice@company.com ran playwright test, cost: $0.05
+```
+
+**Benefits**:
+- ✅ Single sign-on via Azure AD/Okta
+- ✅ User attribution (audit shows "Alice" not "VSCode")
+- ✅ Seamless 8+ hour sessions (auto-refresh)
+- ✅ Cost tracking per developer/team
+- ✅ Security compliance (know who accessed what)
+
+---
+
+### Scenario 2: Data Analyst in Jupyter Notebook
+
+**MCP Server**: Third-party data warehouse (Snowflake MCP)
+
+**Current Flow**:
+```python
+# Analyst runs notebook, token expires during long query
+token = get_token()  # Valid for 1 hour
+
+for i in range(100):  # Runs 3+ hours
+    result = snowflake_mcp.query(token, f"SELECT * FROM table_{i}")
+    # ❌ Fails after 1 hour when token expires
+```
+
+**Gaps Identified**:
+1. ❌ **Token expires mid-query** - Breaks long-running analyses
+2. ❌ **No cost attribution** - Can't bill analyst's department for queries
+3. ❌ **No usage tracking** - No visibility into who's using Snowflake MCP
+
+**After Enhancements**:
+```python
+# Enhancement 4: Auto-refresh
+client = MCPClient(auto_refresh=True)
+client.authenticate()
+
+for i in range(100):  # Runs for days
+    result = client.query(...)  # ✅ Auto-refreshes token every 45 min
+
+# Enhancement 3: Usage tracking
+# Every query logged with user context and cost
+# - bob@company.com ran query, cost: $1.50, duration: 45s
+```
+
+---
+
+### Scenario 3: Customer Service Rep in Custom UI App
+
+**MCP Servers**: Enterprise knowledge base MCP, CRM MCP
+
+**Current Flow**:
+```typescript
+// CS rep logs in, no session management
+// Token remains valid even after shift ends
+```
+
+**Gaps Identified**:
+1. ❌ **No session timeout** - Token valid indefinitely
+2. ❌ **Shared workstations** - Rep forgets to logout, next person has access
+3. ❌ **No audit trail** - Can't prove who accessed customer PII
+
+**After Enhancements**:
+```typescript
+// Enhancement 5: Session management
+const sessionManager = new SessionManager({
+  maxIdleMinutes: 30,      // Auto-logout after 30 min idle
+  maxSessionHours: 8,       // Force logout after 8 hours
+  shiftBasedLogout: true    // Logout at shift end
+});
+
+// Enhancement 1: User context
+// Every CRM lookup logged:
+// - carol@company.com (CS-Rep) viewed customer #12345 at 2pm
+```
+
+---
+
+### Scenario 4: Executive Dashboard for Cost Controls
+
+**MCP Server**: Analytics MCP, billing MCP
+
+**Current Flow**:
+```typescript
+// No visibility into MCP usage or costs
+```
+
+**Gaps Identified**:
+1. ❌ **No cost tracking** - Don't know how much GitHub/Playwright MCPs cost
+2. ❌ **No usage metrics** - Can't see which teams are heavy users
+3. ❌ **No budget controls** - No alerts when costs exceed limits
+
+**After Enhancements**:
+```sql
+-- Enhancement 3: Usage tracking
+SELECT
+  department,
+  mcp_server,
+  SUM(cost_usd) as total_cost,
+  COUNT(*) as api_calls
+FROM mcp_usage
+WHERE month = '2024-11'
+GROUP BY department, mcp_server;
+
+-- Output:
+-- Engineering | mcp://github      | $12,345 | 456,789 calls
+-- Engineering | mcp://playwright  | $3,456  | 23,456 calls
+-- Data Science| mcp://snowflake   | $45,678 | 12,345 calls
+```
 
 ---
 
@@ -28,25 +215,56 @@ Missing:
 
 ### Solution: Token Exchange (RFC 8693)
 
-**Use Case**: IDE extension gets user token, exchanges it for MCP-specific token
+**Use Case**: Developer Alice uses VSCode to access GitHub MCP and Playwright MCP
 
 ```typescript
-// 1. User authenticates to IDE with SSO
-const userToken = await ssoProvider.getUserToken(); // From SAML/OIDC
+// 1. Alice authenticates to VSCode with SSO (Azure AD)
+const userToken = await vscode.authentication.getSession('microsoft');
+// User token: { sub: 'alice@company.com', name: 'Alice Smith', department: 'Engineering' }
 
-// 2. IDE exchanges user token for MCP access token
-const mcpToken = await oauthClient.exchangeToken({
-  subjectToken: userToken,
+// 2. VSCode exchanges user token for GitHub MCP access token
+const githubToken = await oauthClient.exchangeToken({
+  subjectToken: userToken.accessToken,
   subjectTokenType: 'urn:ietf:params:oauth:token-type:access_token',
   requestedTokenType: 'urn:ietf:params:oauth:token-type:access_token',
-  scope: 'code.read docs.read',
-  resource: 'mcp://code-search',
-  actor_token: 'ide-client-token', // IDE's own identity
+  scope: 'github.repo.read github.issues.write',
+  resource: 'mcp://github',
+  actor_token: 'vscode-extension-token', // VSCode's own identity
   actor_token_type: 'urn:ietf:params:oauth:token-type:access_token'
 });
 
-// 3. MCP server validates token, sees both user and IDE client identity
-// Token claims: { sub: 'user@company.com', act: { sub: 'ide-client-12345' } }
+// 3. VSCode exchanges user token for Playwright MCP access token
+const playwrightToken = await oauthClient.exchangeToken({
+  subjectToken: userToken.accessToken,
+  subjectTokenType: 'urn:ietf:params:oauth:token-type:access_token',
+  requestedTokenType: 'urn:ietf:params:oauth:token-type:access_token',
+  scope: 'playwright.browser.control playwright.screenshots',
+  resource: 'mcp://playwright',
+  actor_token: 'vscode-extension-token',
+  actor_token_type: 'urn:ietf:params:oauth:token-type:access_token'
+});
+
+// 4. MCP servers validate tokens, see both user and IDE client identity
+// GitHub MCP token claims: {
+//   sub: 'alice@company.com',
+//   act: { sub: 'vscode-extension-12345' },
+//   scope: 'github.repo.read github.issues.write',
+//   resource: 'mcp://github',
+//   user_email: 'alice@company.com',
+//   user_department: 'Engineering'
+// }
+
+// 5. Alice uses GitHub MCP - all actions attributed to her
+await githubMCP.searchCode(githubToken, 'OAuth implementation');
+// Audit log: alice@company.com (via VSCode) searched repos at 10:30am
+
+await githubMCP.createPR(githubToken, { title: 'Fix OAuth bug' });
+// Audit log: alice@company.com (via VSCode) created PR #123 at 11:15am
+
+// 6. Alice uses Playwright MCP - actions attributed and billed
+await playwrightMCP.runTest(playwrightToken, 'oauth-login.spec.ts');
+// Audit log: alice@company.com ran test, cost: $0.05
+// Cost center: Engineering dept
 ```
 
 **Implementation**:

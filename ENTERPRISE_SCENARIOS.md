@@ -2,46 +2,103 @@
 
 ## Scenario Matrix
 
-| Persona | App | MCP Server Location | Key Requirements | Current Gaps | Priority Enhancement |
-|---------|-----|---------------------|------------------|--------------|---------------------|
-| **Developer** | IDE (VSCode/Cursor) | Internal code search | Long-lived sessions, user attribution | ❌ No SSO, ❌ Manual refresh | 1. SSO + Auto-refresh |
-| **Data Analyst** | Jupyter Notebook | Third-party (Snowflake) | Auto-refresh, cost tracking | ❌ Token expires, ❌ No cost tracking | 2. Auto-refresh + Usage tracking |
-| **CS Rep** | Custom UI App | Enterprise KB/CRM | User audit, session mgmt | ❌ No session mgmt, ❌ No audit trail | 3. Session mgmt + User context |
-| **Executive** | Dashboard | Analytics server | Cost visibility, budget controls | ❌ No usage metrics, ❌ No budgets | 4. Usage tracking + Cost analytics |
+| Persona | App | MCP Server | Key Requirements | Current Gaps | Priority Enhancement |
+|---------|-----|------------|------------------|--------------|---------------------|
+| **Developer** | IDE (VSCode/Cursor) | **GitHub MCP**, **Playwright MCP** (third-party) | Long-lived sessions, user attribution, multi-server auth | ❌ No SSO, ❌ Manual refresh, ❌ No user context | 1. SSO + Token Exchange + Auto-refresh |
+| **Data Analyst** | Jupyter Notebook | **Snowflake MCP** (third-party) | Auto-refresh, cost tracking | ❌ Token expires, ❌ No cost tracking | 2. Auto-refresh + Usage tracking |
+| **CS Rep** | Custom UI App | **Enterprise KB MCP**, **CRM MCP** | User audit, session mgmt | ❌ No session mgmt, ❌ No audit trail | 3. Session mgmt + User context |
+| **Executive** | Dashboard | **Analytics MCP**, **Billing MCP** | Cost visibility, budget controls | ❌ No usage metrics, ❌ No budgets | 4. Usage tracking + Cost analytics |
 
 ---
 
 ## Quick Start: Pick Your Scenario
 
-### 🧑‍💻 Scenario 1: Developer in IDE
+### 🧑‍💻 Scenario 1: Developer in IDE (VSCode/Cursor)
+
+**MCP Servers Used**:
+- **GitHub MCP** - Search repos, create PRs, manage issues
+- **Playwright MCP** - Run browser tests, take screenshots, debug UI
 
 **What you have now**:
 ```typescript
-// Developer manually manages token
-const client = new OAuthClient({
+// Developer Alice manually authenticates for each MCP server
+const githubClient = new OAuthClient({
   clientId: 'vscode-ext',
-  clientSecret: 'secret'
+  authorizationServer: 'https://auth.company.internal'
 });
-const token = await client.getClientCredentialsToken('code.read');
+const githubToken = await githubClient.getClientCredentialsToken('github.repo.read');
+
+const playwrightClient = new OAuthClient({
+  clientId: 'vscode-ext',
+  authorizationServer: 'https://auth.company.internal'
+});
+const playwrightToken = await playwrightClient.getClientCredentialsToken('playwright.browser.control');
+
+// Problems:
+// ❌ Alice authenticates twice (once per MCP server)
+// ❌ GitHub shows "vscode-ext" not "Alice"
+// ❌ Tokens expire after 1 hour during long coding session
+// ❌ No audit trail (can't prove Alice accessed customer repo)
 ```
 
-**What you need**: SSO + User Context
+**What you need**: SSO + Token Exchange + Auto-refresh
 ```typescript
-// After Enhancement 1 & 2
+// After Enhancements 1, 2, & 4
 const client = new OAuthClient({
   clientId: 'vscode-ext',
   ssoProvider: 'azure-ad',
   autoRefresh: true
 });
 
-// User logs in once via SSO
-await client.loginWithSSO();
+// Alice logs in ONCE via SSO (Azure AD)
+const ssoToken = await vscode.authentication.getSession('microsoft');
 
-// Token automatically includes user context
-// { sub: 'alice@company.com', department: 'Engineering' }
+// Exchange SSO token for MCP tokens (with user context)
+const githubToken = await client.exchangeToken({
+  subjectToken: ssoToken.accessToken,
+  scope: 'github.repo.read github.issues.write',
+  resource: 'mcp://github'
+});
+
+const playwrightToken = await client.exchangeToken({
+  subjectToken: ssoToken.accessToken,
+  scope: 'playwright.browser.control',
+  resource: 'mcp://playwright'
+});
+
+// Benefits:
+// ✅ Single login via SSO
+// ✅ Tokens include user context: { sub: 'alice@company.com', department: 'Engineering' }
+// ✅ Auto-refresh every 45 min (Alice codes for 8+ hours uninterrupted)
+// ✅ Full audit trail: "Alice via VSCode accessed customer-data repo"
+// ✅ Cost tracking: "Engineering dept: $0.05 for Playwright test run"
 ```
 
-**Read**: [ENHANCEMENT_PLAN.md](./ENHANCEMENT_PLAN.md#enhancement-1-user-context--token-exchange-rfc-8693)
+**Real Workflow Example**:
+```typescript
+// Alice searches GitHub repos for code examples
+const searchResults = await githubMCP.searchCode(githubToken, 'OAuth implementation');
+// Audit log: alice@company.com searched repos at 10:30am
+
+// Alice creates a PR with changes
+await githubMCP.createPR(githubToken, {
+  title: 'Fix OAuth bug',
+  branch: 'alice/fix-oauth'
+});
+// Audit log: alice@company.com created PR #123 at 11:15am
+
+// Alice runs Playwright test to verify fix
+const testResult = await playwrightMCP.runTest(playwrightToken, 'oauth-login.spec.ts');
+// Audit log: alice@company.com ran test, cost: $0.05 at 11:30am
+
+// Alice takes screenshot for documentation
+const screenshot = await playwrightMCP.screenshot(playwrightToken, { url: '/login' });
+// Audit log: alice@company.com captured screenshot at 11:45am
+
+// All actions tracked, attributed to Alice, and billed to Engineering dept
+```
+
+**Read**: [ENHANCEMENT_PLAN.md - Scenario 1](./ENHANCEMENT_PLAN.md#scenario-1-developer-in-ide-vscodecursor)
 
 ---
 
