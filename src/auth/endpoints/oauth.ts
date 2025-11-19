@@ -162,6 +162,12 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
    * Handles OAuth 2.0 authorization code flow with PKCE
    */
   router.get('/oauth/authorize', async (req: Request, res: Response) => {
+    // DEBUG MARKER - UPDATED CODE VERSION 2024-01-19
+    console.log('[OAuth] ===== AUTHORIZATION ENDPOINT CALLED (VERSION 2024-01-19) =====');
+    console.log('[OAuth] Query params:', Object.keys(req.query).join(', '));
+    console.log('[OAuth] config.auth0Bridge:', !!config.auth0Bridge);
+    console.log('[OAuth] config.interactiveConsent:', !!config.interactiveConsent);
+
     try {
       const {
         response_type,
