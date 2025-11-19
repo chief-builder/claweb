@@ -238,21 +238,21 @@ export class Auth0Bridge {
       this.codeVerifiers.delete(state);
 
       // Extract claims from ID token
-      const claims = tokenResponse.claims() || {};
+      const claims: any = tokenResponse.claims() || {};
 
       console.log('[Auth0Bridge] User authenticated:');
-      console.log(`[Auth0Bridge]   Subject: ${claims.sub}`);
+      console.log(`[Auth0Bridge]   Subject: ${claims.sub || 'N/A'}`);
       console.log(`[Auth0Bridge]   Email: ${claims.email || 'N/A'}`);
       console.log(`[Auth0Bridge]   Name: ${claims.name || 'N/A'}`);
 
       // Fetch additional user info if access token is available
       let userInfo: any = {};
-      if (tokenResponse.access_token) {
+      if (tokenResponse.access_token && claims.sub) {
         try {
           userInfo = await client.fetchUserInfo(
             this.oidcConfig,
             tokenResponse.access_token,
-            claims.sub!
+            claims.sub
           );
           console.log('[Auth0Bridge] Fetched additional user info');
         } catch (error) {
@@ -262,22 +262,22 @@ export class Auth0Bridge {
 
       // Merge claims and userinfo
       const userClaims: Auth0UserClaims = {
-        sub: claims.sub!,
-        email: (claims.email as string) || userInfo.email,
-        email_verified: (claims.email_verified as boolean) || userInfo.email_verified,
-        name: (claims.name as string) || userInfo.name,
-        given_name: (claims.given_name as string) || userInfo.given_name,
-        family_name: (claims.family_name as string) || userInfo.family_name,
-        nickname: (claims.nickname as string) || userInfo.nickname,
-        picture: (claims.picture as string) || userInfo.picture,
-        updated_at: (claims.updated_at as string) || userInfo.updated_at,
+        sub: claims.sub || userInfo.sub,
+        email: claims.email || userInfo.email,
+        email_verified: claims.email_verified || userInfo.email_verified,
+        name: claims.name || userInfo.name,
+        given_name: claims.given_name || userInfo.given_name,
+        family_name: claims.family_name || userInfo.family_name,
+        nickname: claims.nickname || userInfo.nickname,
+        picture: claims.picture || userInfo.picture,
+        updated_at: claims.updated_at || userInfo.updated_at,
 
         // Custom claims (from Auth0 rules/actions)
-        department: (claims as any).department || userInfo.department,
-        employee_id: (claims as any).employee_id || userInfo.employee_id,
-        cost_center: (claims as any).cost_center || userInfo.cost_center,
-        groups: (claims as any).groups || userInfo.groups || [],
-        roles: (claims as any).roles || userInfo.roles || [],
+        department: claims.department || userInfo.department,
+        employee_id: claims.employee_id || userInfo.employee_id,
+        cost_center: claims.cost_center || userInfo.cost_center,
+        groups: claims.groups || userInfo.groups || [],
+        roles: claims.roles || userInfo.roles || [],
       };
 
       return userClaims;
@@ -309,14 +309,14 @@ export class Auth0Bridge {
 
       const userClaims: Auth0UserClaims = {
         sub: userInfo.sub!,
-        email: userInfo.email as string,
-        email_verified: userInfo.email_verified as boolean,
-        name: userInfo.name as string,
-        given_name: userInfo.given_name as string,
-        family_name: userInfo.family_name as string,
-        nickname: userInfo.nickname as string,
-        picture: userInfo.picture as string,
-        updated_at: userInfo.updated_at as string,
+        email: userInfo.email as string | undefined,
+        email_verified: userInfo.email_verified as boolean | undefined,
+        name: userInfo.name as string | undefined,
+        given_name: userInfo.given_name as string | undefined,
+        family_name: userInfo.family_name as string | undefined,
+        nickname: userInfo.nickname as string | undefined,
+        picture: userInfo.picture as string | undefined,
+        updated_at: userInfo.updated_at ? String(userInfo.updated_at) : undefined,
         department: (userInfo as any).department,
         employee_id: (userInfo as any).employee_id,
         cost_center: (userInfo as any).cost_center,

@@ -252,7 +252,7 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
           state: typeof state === 'string' ? state : undefined,
           code_challenge: typeof code_challenge === 'string' ? code_challenge : undefined,
           code_challenge_method: challengeMethod,
-          resource: resource,
+          resource: Array.isArray(resource) ? resource as string[] : typeof resource === 'string' ? resource : undefined,
           expiresAt,
         });
 
@@ -837,7 +837,7 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
         }
 
         // Validate subject token (user's SSO token)
-        const subjectValidation = config.jwtService.validateAccessToken(subject_token);
+        const subjectValidation = config.jwtService.verifyToken(subject_token);
         if (!subjectValidation.valid || !subjectValidation.payload) {
           return res.status(400).json({
             error: 'invalid_grant',
@@ -857,7 +857,7 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
             });
           }
 
-          const actorValidation = config.jwtService.validateAccessToken(actor_token);
+          const actorValidation = config.jwtService.verifyToken(actor_token);
           if (!actorValidation.valid || !actorValidation.payload) {
             return res.status(400).json({
               error: 'invalid_grant',

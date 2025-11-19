@@ -256,7 +256,7 @@ async function main() {
             console.log('✓ Access token issued with user context');
 
             // Decode token to show user claims
-            const tokenPayload = jwtService.validateAccessToken(tokens.access_token);
+            const tokenPayload = jwtService.verifyToken(tokens.access_token);
             if (tokenPayload.valid && tokenPayload.payload) {
               console.log('');
               console.log('Token Claims:');
@@ -294,7 +294,7 @@ async function main() {
                 console.log('✓ GitHub MCP token issued');
 
                 // Decode GitHub token
-                const githubPayload = jwtService.validateAccessToken(githubToken.access_token);
+                const githubPayload = jwtService.verifyToken(githubToken.access_token);
                 if (githubPayload.valid && githubPayload.payload) {
                   console.log('');
                   console.log('GitHub MCP Token Claims:');
@@ -335,7 +335,7 @@ async function main() {
                 console.log('✓ Playwright MCP token issued');
 
                 // Decode Playwright token
-                const playwrightPayload = jwtService.validateAccessToken(
+                const playwrightPayload = jwtService.verifyToken(
                   playwrightToken.access_token
                 );
                 if (playwrightPayload.valid && playwrightPayload.payload) {
