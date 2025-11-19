@@ -22,6 +22,7 @@ import { InMemoryClientStore, ClientRegistrationService } from '../oauth/registr
 import { TokenIntrospectionService } from '../oauth/introspection.js';
 import { TokenRevocationService } from '../oauth/revocation.js';
 import { InMemoryPKCEStore } from '../oauth/pkce.js';
+import { Auth0Bridge, type Auth0Config } from '../sso/auth0-bridge.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,6 +74,12 @@ export interface AuthorizationServerConfig {
    * When false, authorization endpoint auto-approves (for testing)
    */
   interactiveConsent?: boolean;
+
+  /**
+   * Auth0 SSO configuration (optional)
+   * When provided, enables SSO integration with Auth0
+   */
+  auth0?: Auth0Config;
 }
 
 /**
@@ -94,6 +101,9 @@ export class AuthorizationServer {
   private revocationService: TokenRevocationService;
   private pkceStore: InMemoryPKCEStore;
 
+  // SSO integration
+  private auth0Bridge?: Auth0Bridge;
+
   constructor(config: AuthorizationServerConfig) {
     this.config = config;
     this.app = express();
@@ -111,6 +121,11 @@ export class AuthorizationServer {
       this.registrationService
     );
     this.pkceStore = new InMemoryPKCEStore();
+
+    // Initialize Auth0 bridge if configured
+    if (config.auth0) {
+      this.auth0Bridge = new Auth0Bridge(config.auth0);
+    }
 
     this.setupMiddleware();
     this.setupRoutes();
@@ -172,6 +187,7 @@ export class AuthorizationServer {
       revocationService: this.revocationService,
       pkceStore: this.pkceStore,
       interactiveConsent: this.config.interactiveConsent,
+      auth0Bridge: this.auth0Bridge,
     });
 
     this.app.use(oauthRouter);
@@ -200,6 +216,18 @@ export class AuthorizationServer {
     const host = this.config.host || 'localhost';
     const port = this.config.port || 4000;
 
+    // Initialize Auth0 bridge if configured
+    if (this.auth0Bridge) {
+      try {
+        await this.auth0Bridge.initialize();
+        console.error('[AuthServer] Auth0 SSO integration enabled');
+        console.error(`[AuthServer] Auth0 Domain: ${this.config.auth0?.domain}`);
+      } catch (error) {
+        console.error('[AuthServer] Failed to initialize Auth0:', error);
+        throw error;
+      }
+    }
+
     return new Promise((resolve, reject) => {
       let resolved = false;
 
@@ -225,6 +253,10 @@ export class AuthorizationServer {
             console.error(`  Address:   http://${host}:${port}`);
             console.error(`  Discovery: ${this.config.issuer}/.well-known/oauth-authorization-server`);
             console.error(`  JWKS:      ${this.config.issuer}/oauth/jwks`);
+            if (this.auth0Bridge) {
+              console.error(`  Auth0 SSO: Enabled`);
+              console.error(`  SSO Callback: ${this.config.auth0?.redirectUri}`);
+            }
             console.error('═══════════════════════════════════════════════════════');
             console.error('');
             resolve();
