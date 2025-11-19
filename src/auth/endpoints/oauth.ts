@@ -241,6 +241,7 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
 
       // If Auth0 SSO is enabled, redirect to Auth0 for authentication
       if (config.auth0Bridge) {
+        console.log('[OAuth] SSO enabled, redirecting to Auth0');
         // Generate SSO state to preserve OAuth parameters
         const ssoState = generateAuthorizationCode(); // Reuse for simplicity
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -271,6 +272,7 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
 
       // If interactive consent is enabled, show consent page
       if (config.interactiveConsent) {
+        console.log('[OAuth] Interactive consent enabled, redirecting to consent page');
         // Build consent page URL with parameters
         const consentUrl = new URL('/static/consent.html', config.issuer);
         consentUrl.searchParams.set('client_id', client_id);
@@ -297,6 +299,7 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
       }
 
       // Auto-approve (for non-interactive flows or testing)
+      console.log('[OAuth] Auto-approving (no SSO or interactive consent)');
       // Generate authorization code
       const code = generateAuthorizationCode();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
