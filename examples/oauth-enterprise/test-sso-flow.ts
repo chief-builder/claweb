@@ -11,6 +11,7 @@
 import { AuthorizationServer } from '../../src/auth/authorization-server/server.js';
 import { JWTService } from '../../src/auth/oauth/jwt.js';
 import type { Auth0UserClaims } from '../../src/auth/sso/auth0-bridge.js';
+import { getResourceIndicatorService } from '../../src/auth/rfc8707/indicators.js';
 
 // Mock Auth0 Bridge for testing (simulates Auth0 without actual Auth0 account)
 class MockAuth0Bridge {
@@ -112,22 +113,33 @@ async function main() {
     const mockAuth0 = new MockAuth0Bridge() as any;
     await mockAuth0.initialize(); // Initialize the mock bridge
 
+    // Register MCP resources for token exchange
+    const resourceService = getResourceIndicatorService();
+    resourceService.registerResource({
+      uri: 'mcp://github',
+      scopes: ['github.repo.read', 'github.issues.write', 'github.pr.read', 'github.pr.write'],
+      description: 'GitHub MCP Server',
+    });
+    resourceService.registerResource({
+      uri: 'mcp://playwright',
+      scopes: ['playwright.browser.control', 'playwright.screenshot', 'playwright.navigate'],
+      description: 'Playwright MCP Server',
+    });
+
     authServer = new AuthorizationServer({
       host: 'localhost',
       port: 4000,
       issuer: 'http://localhost:4000',
       cors: true,
       interactiveConsent: false, // Auto-approve for testing
-      // Don't pass auth0 config - we'll inject the mock bridge directly
+      auth0: {
+        domain: 'mock.auth0.com',
+        clientId: 'mock_client_id',
+        clientSecret: 'mock_client_secret',
+        redirectUri: 'http://localhost:4000/oauth/sso/callback',
+      },
+      auth0Bridge: mockAuth0, // Pass mock bridge directly
     });
-
-    // Inject mock Auth0 bridge BEFORE server starts
-    (authServer as any).auth0Bridge = mockAuth0;
-    // Also set a fake config for logging
-    (authServer as any).config.auth0 = {
-      domain: 'mock.auth0.com',
-      redirectUri: 'http://localhost:4000/oauth/sso/callback',
-    };
 
     try {
       await authServer.start();
@@ -308,6 +320,9 @@ async function main() {
                 }
               } else {
                 console.error('✗ Failed to get GitHub MCP token');
+                console.error(`  Status: ${githubTokenResponse.status}`);
+                const errorText = await githubTokenResponse.text();
+                console.error(`  Error: ${errorText}`);
                 failedTests++;
               }
 
@@ -353,6 +368,9 @@ async function main() {
                 }
               } else {
                 console.error('✗ Failed to get Playwright MCP token');
+                console.error(`  Status: ${playwrightTokenResponse.status}`);
+                const errorText = await playwrightTokenResponse.text();
+                console.error(`  Error: ${errorText}`);
                 failedTests++;
               }
             } else {

@@ -131,7 +131,7 @@ npm run example:oauth:test-revocation
 
 ## Enterprise Features Testing
 
-### 5. Enterprise SSO + Token Exchange Test
+### 5. Enterprise SSO + Token Exchange Test (Mock Auth0)
 ```bash
 npm run example:enterprise:sso
 ```
@@ -143,27 +143,120 @@ npm run example:enterprise:sso
 - Multi-server token exchange (GitHub MCP, Playwright MCP)
 - User attribution and audit logging
 
-**Current Status**: 3/4 tests passing (SSO callback needs Auth0 configuration)
+**Status**: ✅ All 8/8 tests passing (with mock Auth0)
 
-**Expected Output (with mock Auth0):**
+**Expected Output:**
 ```
+✅ All Tests Passed!
+Passed: 8/8
+Failed: 0/8
+
 Step 1: ✓ Authorization Server running with SSO enabled
 Step 2: ✓ VSCode client registered
 Step 3: ✓ OAuth Authorization Code Flow (with SSO)
-Step 4: ✗ SSO callback (requires actual Auth0 config)
+Step 4: ✓ SSO authentication successful
+Step 5: ✓ Access token issued with user context
+Step 6: ✓ GitHub MCP token issued
+Step 7: ✓ Playwright MCP token issued
 ```
 
-**To test with real Auth0:**
-1. Create an Auth0 application
-2. Set environment variables:
+---
+
+### 6. Real Auth0 Integration Test
+```bash
+# Set up Auth0 credentials (see setup instructions below)
+AUTH0_DOMAIN=your-tenant.auth0.com \
+AUTH0_CLIENT_ID=your_client_id \
+AUTH0_CLIENT_SECRET=your_client_secret \
+npm run example:enterprise:real-auth0
+```
+
+**What it tests:**
+- Complete SSO flow with real Auth0 OIDC provider
+- Browser-based authentication
+- User context extraction from Auth0 tokens
+- Token exchange with real user claims
+- Multi-MCP token issuance with user attribution
+
+**Status**: Ready for testing (requires Auth0 account)
+
+**Auth0 Setup Instructions:**
+
+1. **Create Auth0 Account** (if you don't have one):
+   - Go to https://auth0.com
+   - Sign up for a free account
+
+2. **Create Auth0 Application**:
+   - Go to Applications → Applications
+   - Click "Create Application"
+   - Name: "MCP OAuth Test" (or any name)
+   - Type: "Regular Web Application"
+   - Click "Create"
+
+3. **Configure Application Settings**:
+   - Go to Application Settings tab
+   - Set **Allowed Callback URLs**: `http://localhost:4000/oauth/sso/callback`
+   - Set **Allowed Logout URLs**: `http://localhost:4000`
+   - Set **Allowed Web Origins**: `http://localhost:4000`
+   - Click "Save Changes"
+
+4. **Get Credentials**:
+   - Copy **Domain** (e.g., `dev-abc123.us.auth0.com`)
+   - Copy **Client ID**
+   - Copy **Client Secret**
+
+5. **Add Custom User Claims** (Optional, for enterprise features):
+   - Go to Actions → Flows → Login
+   - Click "+" to create a new action
+   - Name: "Add User Metadata"
+   - Code:
+     ```javascript
+     exports.onExecutePostLogin = async (event, api) => {
+       const namespace = 'https://example.com/';
+       api.idToken.setCustomClaim(namespace + 'department', 'Engineering');
+       api.idToken.setCustomClaim(namespace + 'employee_id', 'EMP-001');
+       api.idToken.setCustomClaim(namespace + 'cost_center', 'CC-100');
+       api.idToken.setCustomClaim(namespace + 'groups', ['developers', 'senior-engineers']);
+       api.idToken.setCustomClaim(namespace + 'roles', ['developer', 'code-reviewer']);
+     };
+     ```
+   - Click "Deploy"
+   - Drag the action to the Login flow
+   - Click "Apply"
+
+6. **Run the Test**:
    ```bash
-   export AUTH0_DOMAIN=your-tenant.us.auth0.com
-   export AUTH0_CLIENT_ID=your_client_id
-   export AUTH0_CLIENT_SECRET=your_client_secret
-   export AUTH0_REDIRECT_URI=http://localhost:4000/oauth/sso/callback
+   AUTH0_DOMAIN=your-tenant.auth0.com \
+   AUTH0_CLIENT_ID=your_client_id \
+   AUTH0_CLIENT_SECRET=your_client_secret \
+   npm run example:enterprise:real-auth0
    ```
-3. Modify the test to use real Auth0 config
-4. Run `npm run example:enterprise:sso`
+
+**Expected Behavior:**
+1. Test starts and displays Auth0 configuration
+2. Browser opens automatically for Auth0 login
+3. You log in with your Auth0 credentials
+4. Auth0 redirects back to the callback server
+5. Test exchanges authorization code for tokens
+6. Test performs token exchange for GitHub and Playwright MCPs
+7. Test displays user claims and token details
+8. Test completes successfully
+
+**Expected Output:**
+```
+═══════════════════════════════════════════════════════
+  ✅ Real Auth0 Integration Test PASSED!
+═══════════════════════════════════════════════════════
+
+Summary:
+✅ Auth0 SSO authentication successful
+✅ User context propagated from Auth0 to OAuth tokens
+✅ Token exchange for GitHub MCP successful
+✅ Token exchange for Playwright MCP successful
+✅ All tokens include user attribution
+```
+
+**Note**: If custom claims are not configured, the test will still pass but won't show department, employee_id, etc.
 
 ---
 

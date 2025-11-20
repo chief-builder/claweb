@@ -28,6 +28,7 @@
     "example:oauth:interactive": "tsx examples/oauth-roles/04-interactive-demo.ts",
     "example:oauth:edge-cases": "tsx examples/oauth-roles/test-edge-cases.ts",
     "example:enterprise:sso": "tsx examples/oauth-enterprise/test-sso-flow.ts",
+    "example:enterprise:real-auth0": "tsx examples/oauth-enterprise/test-real-auth0.ts",
     "test:oauth:all": "tsx scripts/run-all-oauth-tests.ts",
     "inspector": "npx @modelcontextprotocol/inspector node dist/server/index.js"
   },
@@ -51,6 +52,7 @@
     "jose": "^6.1.2",
     "jsonwebtoken": "^9.0.2",
     "oauth4webapi": "^3.8.2",
+    "open": "^11.0.0",
     "openid-client": "^6.8.1",
     "zod": "^3.23.8"
   },

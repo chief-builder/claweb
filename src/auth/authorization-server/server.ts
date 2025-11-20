@@ -80,6 +80,13 @@ export interface AuthorizationServerConfig {
    * When provided, enables SSO integration with Auth0
    */
   auth0?: Auth0Config;
+
+  /**
+   * Pre-initialized Auth0 bridge (optional, for testing)
+   * When provided, uses this instead of creating a new Auth0Bridge
+   * Useful for injecting mock Auth0 implementations
+   */
+  auth0Bridge?: Auth0Bridge;
 }
 
 /**
@@ -123,7 +130,11 @@ export class AuthorizationServer {
     this.pkceStore = new InMemoryPKCEStore();
 
     // Initialize Auth0 bridge if configured
-    if (config.auth0) {
+    if (config.auth0Bridge) {
+      // Use pre-initialized bridge (for testing)
+      this.auth0Bridge = config.auth0Bridge;
+    } else if (config.auth0) {
+      // Create new Auth0 bridge from config
       this.auth0Bridge = new Auth0Bridge(config.auth0);
     }
 
