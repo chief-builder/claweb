@@ -10,6 +10,14 @@
     "client": "node dist/client/index.js",
     "agent": "node dist/agent/simple-agent.js",
     "agent:intelligent": "node dist/agent/intelligent-agent.js",
+    "agent:oauth": "node dist/agent/oauth-intelligent-agent.js",
+    "mcp:playwright": "node dist/mcp-servers/playwright-server.js",
+    "mcp:github": "node dist/mcp-servers/github-server.js",
+    "web-chat": "node dist/web-chat/server.js",
+    "dev:agent:oauth": "tsx src/agent/oauth-intelligent-agent.ts",
+    "dev:mcp:playwright": "tsx src/mcp-servers/playwright-server.ts",
+    "dev:mcp:github": "tsx src/mcp-servers/github-server.ts",
+    "dev:web-chat": "tsx src/web-chat/server.ts",
     "test": "vitest",
     "test:integration": "vitest run tests/integration.test.ts",
     "test:http": "vitest run tests/http-transport.test.ts",
@@ -45,6 +53,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@modelcontextprotocol/sdk": "^1.0.4",
+    "@octokit/rest": "^22.0.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/jsonwebtoken": "^9.0.10",
@@ -55,6 +64,7 @@
     "oauth4webapi": "^3.8.2",
     "open": "^11.0.0",
     "openid-client": "^6.8.1",
+    "playwright": "^1.56.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
