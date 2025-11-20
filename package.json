@@ -29,6 +29,7 @@
     "example:oauth:edge-cases": "tsx examples/oauth-roles/test-edge-cases.ts",
     "example:enterprise:sso": "tsx examples/oauth-enterprise/test-sso-flow.ts",
     "example:enterprise:real-auth0": "tsx examples/oauth-enterprise/test-real-auth0.ts",
+    "example:enterprise:scopes": "tsx examples/oauth-enterprise/test-scope-filtering.ts",
     "test:oauth:all": "tsx scripts/run-all-oauth-tests.ts",
     "inspector": "npx @modelcontextprotocol/inspector node dist/server/index.js"
   },
