@@ -22,6 +22,7 @@ import { InMemoryClientStore, ClientRegistrationService } from '../oauth/registr
 import { TokenIntrospectionService } from '../oauth/introspection.js';
 import { TokenRevocationService } from '../oauth/revocation.js';
 import { InMemoryPKCEStore } from '../oauth/pkce.js';
+import { Auth0Bridge, type Auth0Config } from '../sso/auth0-bridge.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,6 +74,19 @@ export interface AuthorizationServerConfig {
    * When false, authorization endpoint auto-approves (for testing)
    */
   interactiveConsent?: boolean;
+
+  /**
+   * Auth0 SSO configuration (optional)
+   * When provided, enables SSO integration with Auth0
+   */
+  auth0?: Auth0Config;
+
+  /**
+   * Pre-initialized Auth0 bridge (optional, for testing)
+   * When provided, uses this instead of creating a new Auth0Bridge
+   * Useful for injecting mock Auth0 implementations
+   */
+  auth0Bridge?: Auth0Bridge;
 }
 
 /**
@@ -94,6 +108,9 @@ export class AuthorizationServer {
   private revocationService: TokenRevocationService;
   private pkceStore: InMemoryPKCEStore;
 
+  // SSO integration
+  private auth0Bridge?: Auth0Bridge;
+
   constructor(config: AuthorizationServerConfig) {
     this.config = config;
     this.app = express();
@@ -111,6 +128,15 @@ export class AuthorizationServer {
       this.registrationService
     );
     this.pkceStore = new InMemoryPKCEStore();
+
+    // Initialize Auth0 bridge if configured
+    if (config.auth0Bridge) {
+      // Use pre-initialized bridge (for testing)
+      this.auth0Bridge = config.auth0Bridge;
+    } else if (config.auth0) {
+      // Create new Auth0 bridge from config
+      this.auth0Bridge = new Auth0Bridge(config.auth0);
+    }
 
     this.setupMiddleware();
     this.setupRoutes();
@@ -172,6 +198,7 @@ export class AuthorizationServer {
       revocationService: this.revocationService,
       pkceStore: this.pkceStore,
       interactiveConsent: this.config.interactiveConsent,
+      auth0Bridge: this.auth0Bridge,
     });
 
     this.app.use(oauthRouter);
@@ -200,28 +227,59 @@ export class AuthorizationServer {
     const host = this.config.host || 'localhost';
     const port = this.config.port || 4000;
 
-    return new Promise((resolve, reject) => {
+    // Initialize Auth0 bridge if configured
+    if (this.auth0Bridge) {
       try {
+        await this.auth0Bridge.initialize();
+        console.error('[AuthServer] Auth0 SSO integration enabled');
+        console.error(`[AuthServer] Auth0 Domain: ${this.config.auth0?.domain}`);
+      } catch (error) {
+        console.error('[AuthServer] Failed to initialize Auth0:', error);
+        throw error;
+      }
+    }
+
+    return new Promise((resolve, reject) => {
+      let resolved = false;
+
+      try {
+        // Set up error handler before listen() to catch immediate errors
+        const errorHandler = (error: Error) => {
+          if (!resolved) {
+            resolved = true;
+            console.error('[AuthServer] Failed to start server:', error);
+            this.server = null;
+            reject(error);
+          }
+        };
+
         this.server = this.app.listen(port, host, () => {
-          console.error('');
-          console.error('═══════════════════════════════════════════════════════');
-          console.error('  OAuth 2.0 Authorization Server');
-          console.error('═══════════════════════════════════════════════════════');
-          console.error(`  Issuer:    ${this.config.issuer}`);
-          console.error(`  Address:   http://${host}:${port}`);
-          console.error(`  Discovery: ${this.config.issuer}/.well-known/oauth-authorization-server`);
-          console.error(`  JWKS:      ${this.config.issuer}/oauth/jwks`);
-          console.error('═══════════════════════════════════════════════════════');
-          console.error('');
-          resolve();
+          if (!resolved) {
+            resolved = true;
+            console.error('');
+            console.error('═══════════════════════════════════════════════════════');
+            console.error('  OAuth 2.0 Authorization Server');
+            console.error('═══════════════════════════════════════════════════════');
+            console.error(`  Issuer:    ${this.config.issuer}`);
+            console.error(`  Address:   http://${host}:${port}`);
+            console.error(`  Discovery: ${this.config.issuer}/.well-known/oauth-authorization-server`);
+            console.error(`  JWKS:      ${this.config.issuer}/oauth/jwks`);
+            if (this.auth0Bridge) {
+              console.error(`  Auth0 SSO: Enabled`);
+              console.error(`  SSO Callback: ${this.config.auth0?.redirectUri}`);
+            }
+            console.error('═══════════════════════════════════════════════════════');
+            console.error('');
+            resolve();
+          }
         });
 
-        this.server.on('error', (error) => {
-          console.error('[AuthServer] Server error:', error);
-          reject(error);
-        });
+        this.server.on('error', errorHandler);
       } catch (error) {
-        reject(error);
+        if (!resolved) {
+          resolved = true;
+          reject(error);
+        }
       }
     });
   }

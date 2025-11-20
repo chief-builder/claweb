@@ -19,6 +19,7 @@ import { TokenIntrospectionService } from '../oauth/introspection.js';
 import { TokenRevocationService } from '../oauth/revocation.js';
 import { getResourceIndicatorService } from '../rfc8707/indicators.js';
 import { authenticate } from '../middleware/oauth.js';
+import { Auth0Bridge } from '../sso/auth0-bridge.js';
 
 /**
  * OAuth endpoints configuration
@@ -58,6 +59,11 @@ export interface OAuthEndpointsConfig {
    * Enable interactive consent page (default: false)
    */
   interactiveConsent?: boolean;
+
+  /**
+   * Auth0 SSO bridge (optional)
+   */
+  auth0Bridge?: Auth0Bridge;
 }
 
 /**
@@ -74,9 +80,37 @@ interface AuthorizationCode {
   codeChallengeMethod?: string;
   expiresAt: Date;
   used: boolean;
+  // User claims from SSO (if authenticated via Auth0)
+  userClaims?: {
+    sub: string;
+    email?: string;
+    name?: string;
+    department?: string;
+    employee_id?: string;
+    cost_center?: string;
+    groups?: string[];
+    roles?: string[];
+  };
 }
 
 const authorizationCodes = new Map<string, AuthorizationCode>();
+
+/**
+ * SSO state store (temporary storage for OAuth params during SSO redirect)
+ * State -> OAuth parameters
+ */
+interface SSOState {
+  client_id: string;
+  redirect_uri: string;
+  scope?: string;
+  state?: string;
+  code_challenge?: string;
+  code_challenge_method?: string;
+  resource?: string | string[];
+  expiresAt: Date;
+}
+
+const ssoStates = new Map<string, SSOState>();
 
 /**
  * Generate random authorization code
@@ -128,6 +162,12 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
    * Handles OAuth 2.0 authorization code flow with PKCE
    */
   router.get('/oauth/authorize', async (req: Request, res: Response) => {
+    // DEBUG MARKER - UPDATED CODE VERSION 2024-01-19
+    console.log('[OAuth] ===== AUTHORIZATION ENDPOINT CALLED (VERSION 2024-01-19) =====');
+    console.log('[OAuth] Query params:', Object.keys(req.query).join(', '));
+    console.log('[OAuth] config.auth0Bridge:', !!config.auth0Bridge);
+    console.log('[OAuth] config.interactiveConsent:', !!config.interactiveConsent);
+
     try {
       const {
         response_type,
@@ -205,8 +245,40 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
         resources = validation.resources;
       }
 
+      // If Auth0 SSO is enabled, redirect to Auth0 for authentication
+      if (config.auth0Bridge) {
+        console.log('[OAuth] SSO enabled, redirecting to Auth0');
+        // Generate SSO state to preserve OAuth parameters
+        const ssoState = generateAuthorizationCode(); // Reuse for simplicity
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        ssoStates.set(ssoState, {
+          client_id: client_id,
+          redirect_uri: redirect_uri,
+          scope: typeof scope === 'string' ? scope : undefined,
+          state: typeof state === 'string' ? state : undefined,
+          code_challenge: typeof code_challenge === 'string' ? code_challenge : undefined,
+          code_challenge_method: challengeMethod,
+          resource: Array.isArray(resource) ? resource as string[] : typeof resource === 'string' ? resource : undefined,
+          expiresAt,
+        });
+
+        // Clean up expired states
+        setTimeout(() => {
+          ssoStates.delete(ssoState);
+        }, 10 * 60 * 1000);
+
+        // Redirect to Auth0
+        const auth0Url = config.auth0Bridge.getAuthorizationUrl(ssoState);
+        console.log(`[OAuth] Redirecting to Auth0 for SSO authentication`);
+        console.log(`[OAuth]   State: ${ssoState}`);
+        console.log(`[OAuth]   Client: ${client_id}`);
+        return res.redirect(auth0Url);
+      }
+
       // If interactive consent is enabled, show consent page
       if (config.interactiveConsent) {
+        console.log('[OAuth] Interactive consent enabled, redirecting to consent page');
         // Build consent page URL with parameters
         const consentUrl = new URL('/static/consent.html', config.issuer);
         consentUrl.searchParams.set('client_id', client_id);
@@ -233,6 +305,7 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
       }
 
       // Auto-approve (for non-interactive flows or testing)
+      console.log('[OAuth] Auto-approving (no SSO or interactive consent)');
       // Generate authorization code
       const code = generateAuthorizationCode();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -262,6 +335,185 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
       res.status(500).json({
         error: 'server_error',
         error_description: error instanceof Error ? error.message : 'Authorization failed',
+      });
+    }
+  });
+
+  /**
+   * SSO Callback endpoint
+   * GET /oauth/sso/callback
+   *
+   * Handles callback from Auth0 after user authentication
+   */
+  router.get('/oauth/sso/callback', async (req: Request, res: Response) => {
+    try {
+      const { code, state, error, error_description } = req.query;
+
+      // Handle Auth0 errors
+      if (error) {
+        console.error('[SSO] Auth0 returned error:', error, error_description);
+        return res.status(400).json({
+          error: typeof error === 'string' ? error : 'sso_error',
+          error_description: typeof error_description === 'string' ? error_description : 'SSO authentication failed',
+        });
+      }
+
+      // Validate parameters
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing authorization code from SSO provider',
+        });
+      }
+
+      if (!state || typeof state !== 'string') {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing state parameter',
+        });
+      }
+
+      // Retrieve original OAuth parameters
+      const ssoState = ssoStates.get(state);
+      if (!ssoState) {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Invalid or expired SSO state',
+        });
+      }
+
+      // Check if state expired
+      if (ssoState.expiresAt < new Date()) {
+        ssoStates.delete(state);
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'SSO state expired',
+        });
+      }
+
+      // Exchange Auth0 code for user claims
+      if (!config.auth0Bridge) {
+        return res.status(500).json({
+          error: 'server_error',
+          error_description: 'Auth0 bridge not configured',
+        });
+      }
+
+      let userClaims;
+      try {
+        userClaims = await config.auth0Bridge.authenticateUser(code, state);
+        console.log('[SSO] User authenticated via Auth0');
+        console.log(`[SSO]   Subject: ${userClaims.sub}`);
+        console.log(`[SSO]   Email: ${userClaims.email || 'N/A'}`);
+        console.log(`[SSO]   Name: ${userClaims.name || 'N/A'}`);
+        console.log(`[SSO]   Department: ${userClaims.department || 'N/A'}`);
+      } catch (error) {
+        console.error('[SSO] Failed to authenticate user:', error);
+        return res.status(500).json({
+          error: 'server_error',
+          error_description: 'Failed to authenticate user with SSO provider',
+        });
+      }
+
+      // Clean up SSO state
+      ssoStates.delete(state);
+
+      // Validate resource indicators from original request
+      let resources: string[] | undefined;
+      if (ssoState.resource) {
+        const resourceArray = Array.isArray(ssoState.resource)
+          ? ssoState.resource
+          : [ssoState.resource];
+        const validation = resourceService.validateResourceRequest({
+          resource: resourceArray as string[],
+          scope: ssoState.scope,
+        });
+
+        if (!validation.valid) {
+          return res.status(400).json({
+            error: 'invalid_target',
+            error_description: validation.errors?.join(', '),
+          });
+        }
+
+        resources = validation.resources;
+      }
+
+      // If interactive consent is enabled, show consent page with user context
+      if (config.interactiveConsent) {
+        const consentUrl = new URL('/static/consent.html', config.issuer);
+        consentUrl.searchParams.set('client_id', ssoState.client_id);
+        consentUrl.searchParams.set('redirect_uri', ssoState.redirect_uri);
+        if (ssoState.scope) {
+          consentUrl.searchParams.set('scope', ssoState.scope);
+        }
+        if (ssoState.state) {
+          consentUrl.searchParams.set('state', ssoState.state);
+        }
+        if (ssoState.resource) {
+          const resourceArray = Array.isArray(ssoState.resource)
+            ? ssoState.resource
+            : [ssoState.resource];
+          resourceArray.forEach(r => consentUrl.searchParams.append('resource', r as string));
+        }
+        if (ssoState.code_challenge) {
+          consentUrl.searchParams.set('code_challenge', ssoState.code_challenge);
+        }
+        if (ssoState.code_challenge_method) {
+          consentUrl.searchParams.set('code_challenge_method', ssoState.code_challenge_method);
+        }
+
+        // Add user context for consent page display
+        consentUrl.searchParams.set('user_email', userClaims.email || '');
+        consentUrl.searchParams.set('user_name', userClaims.name || '');
+
+        console.log('[SSO] Redirecting to consent page with user context');
+        return res.redirect(consentUrl.toString());
+      }
+
+      // Auto-approve: Generate authorization code with user claims
+      const authCode = generateAuthorizationCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      authorizationCodes.set(authCode, {
+        code: authCode,
+        clientId: ssoState.client_id,
+        redirectUri: ssoState.redirect_uri,
+        scopes: ssoState.scope ? ssoState.scope.split(' ') : [],
+        resources,
+        codeChallenge: ssoState.code_challenge,
+        codeChallengeMethod: ssoState.code_challenge_method,
+        expiresAt,
+        used: false,
+        userClaims: {
+          sub: userClaims.sub,
+          email: userClaims.email,
+          name: userClaims.name,
+          department: userClaims.department,
+          employee_id: userClaims.employee_id,
+          cost_center: userClaims.cost_center,
+          groups: userClaims.groups,
+          roles: userClaims.roles,
+        },
+      });
+
+      console.log('[SSO] Generated authorization code with user context');
+      console.log(`[SSO]   Code: ${authCode.substring(0, 8)}...`);
+      console.log(`[SSO]   User: ${userClaims.email || userClaims.sub}`);
+
+      // Redirect back to client with authorization code
+      const redirectUrl = new URL(ssoState.redirect_uri);
+      redirectUrl.searchParams.set('code', authCode);
+      if (ssoState.state) {
+        redirectUrl.searchParams.set('state', ssoState.state);
+      }
+
+      res.redirect(redirectUrl.toString());
+    } catch (error) {
+      console.error('[SSO] Callback error:', error);
+      res.status(500).json({
+        error: 'server_error',
+        error_description: error instanceof Error ? error.message : 'SSO callback failed',
       });
     }
   });
@@ -445,20 +697,33 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
         // Mark code as used
         authCode.used = true;
 
-        // Generate tokens
-        const accessToken = config.jwtService.createAccessToken({
-          sub: client_id,
+        // Generate tokens with user context (if available from SSO)
+        const tokenClaims: any = {
+          sub: authCode.userClaims?.sub || client_id,
           client_id,
           scope: authCode.scopes.join(' '),
           resource: authCode.resources,
-        });
+        };
 
-        const refreshToken = config.jwtService.createRefreshToken({
-          sub: client_id,
-          client_id,
-          scope: authCode.scopes.join(' '),
-          resource: authCode.resources,
-        });
+        // Add user metadata if available (from SSO authentication)
+        if (authCode.userClaims) {
+          tokenClaims.user_email = authCode.userClaims.email;
+          tokenClaims.user_name = authCode.userClaims.name;
+          tokenClaims.user_department = authCode.userClaims.department;
+          tokenClaims.employee_id = authCode.userClaims.employee_id;
+          tokenClaims.cost_center = authCode.userClaims.cost_center;
+          tokenClaims.user_groups = authCode.userClaims.groups;
+          tokenClaims.user_roles = authCode.userClaims.roles;
+
+          console.log('[Token] Issuing token with user context');
+          console.log(`[Token]   User: ${authCode.userClaims.email || authCode.userClaims.sub}`);
+          console.log(`[Token]   Department: ${authCode.userClaims.department || 'N/A'}`);
+          console.log(`[Token]   Client: ${client_id}`);
+        }
+
+        const accessToken = config.jwtService.createAccessToken(tokenClaims);
+
+        const refreshToken = config.jwtService.createRefreshToken(tokenClaims);
 
         return res.json({
           access_token: accessToken,
@@ -550,6 +815,124 @@ export function createOAuthRouter(config: OAuthEndpointsConfig): Router {
           access_token: result.accessToken,
           token_type: 'Bearer',
           expires_in: 3600,
+        });
+      }
+
+      // Handle token exchange grant (RFC 8693)
+      if (grant_type === 'urn:ietf:params:oauth:grant-type:token-exchange') {
+        const {
+          subject_token,
+          subject_token_type,
+          actor_token,
+          actor_token_type,
+          requested_token_type,
+        } = req.body;
+
+        // Validate required parameters
+        if (!subject_token || !subject_token_type) {
+          return res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Missing subject_token or subject_token_type',
+          });
+        }
+
+        // Currently only support access_token types
+        const supportedTokenType = 'urn:ietf:params:oauth:token-type:access_token';
+        if (subject_token_type !== supportedTokenType) {
+          return res.status(400).json({
+            error: 'invalid_request',
+            error_description: `Unsupported subject_token_type. Only ${supportedTokenType} is supported.`,
+          });
+        }
+
+        // Validate subject token (user's SSO token)
+        const subjectValidation = config.jwtService.verifyToken(subject_token);
+        if (!subjectValidation.valid || !subjectValidation.payload) {
+          return res.status(400).json({
+            error: 'invalid_grant',
+            error_description: 'Invalid subject_token',
+          });
+        }
+
+        const subjectClaims = subjectValidation.payload;
+
+        // Validate actor token if provided (client/app token)
+        let actorClaims = null;
+        if (actor_token && actor_token_type) {
+          if (actor_token_type !== supportedTokenType) {
+            return res.status(400).json({
+              error: 'invalid_request',
+              error_description: `Unsupported actor_token_type. Only ${supportedTokenType} is supported.`,
+            });
+          }
+
+          const actorValidation = config.jwtService.verifyToken(actor_token);
+          if (!actorValidation.valid || !actorValidation.payload) {
+            return res.status(400).json({
+              error: 'invalid_grant',
+              error_description: 'Invalid actor_token',
+            });
+          }
+
+          actorClaims = actorValidation.payload;
+        }
+
+        // Validate resource indicators
+        let resources: string[] | undefined;
+        if (resource) {
+          const resourceArray = Array.isArray(resource) ? resource : [resource];
+          const validation = resourceService.validateResourceRequest({
+            resource: resourceArray as string[],
+            scope: scope || subjectClaims.scope,
+          });
+
+          if (!validation.valid) {
+            return res.status(400).json({
+              error: 'invalid_target',
+              error_description: validation.errors?.join(', '),
+            });
+          }
+
+          resources = validation.resources;
+        }
+
+        // Create exchanged token with user context and actor context
+        const exchangedToken = config.jwtService.createAccessToken({
+          sub: subjectClaims.sub, // User identity from SSO
+          client_id: actorClaims?.client_id || client_id,
+          scope: scope || subjectClaims.scope,
+          resource: resources || subjectClaims.resource,
+
+          // Actor claim (RFC 8693) - represents the app/IDE acting on behalf of user
+          ...(actorClaims && {
+            act: {
+              sub: actorClaims.sub,
+              client_id: actorClaims.client_id,
+            },
+          }),
+
+          // User metadata for audit and authorization
+          user_email: subjectClaims.user_email || subjectClaims.email,
+          user_name: subjectClaims.user_name || subjectClaims.name,
+          user_department: subjectClaims.user_department || subjectClaims.department,
+          user_groups: subjectClaims.user_groups || subjectClaims.groups,
+          user_roles: subjectClaims.user_roles || subjectClaims.roles,
+          employee_id: subjectClaims.employee_id,
+          cost_center: subjectClaims.cost_center,
+        });
+
+        console.log('[TokenExchange] Issued exchanged token');
+        console.log(`[TokenExchange]   Subject: ${subjectClaims.sub}`);
+        console.log(`[TokenExchange]   Actor: ${actorClaims?.sub || 'N/A'}`);
+        console.log(`[TokenExchange]   Resource: ${resources?.join(', ') || 'N/A'}`);
+
+        return res.json({
+          access_token: exchangedToken,
+          issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+          scope: scope || subjectClaims.scope,
+          ...(resources && { resource: resources }),
         });
       }
 

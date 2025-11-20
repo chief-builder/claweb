@@ -305,7 +305,12 @@ export class ClientRegistrationService {
     }
 
     // Validate grant types
-    const validGrantTypes = ['authorization_code', 'client_credentials', 'refresh_token'];
+    const validGrantTypes = [
+      'authorization_code',
+      'client_credentials',
+      'refresh_token',
+      'urn:ietf:params:oauth:grant-type:token-exchange', // RFC 8693 Token Exchange
+    ];
     if (request.grant_types) {
       for (const grantType of request.grant_types) {
         if (!validGrantTypes.includes(grantType)) {

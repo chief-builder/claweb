@@ -434,6 +434,458 @@ This validates token revocation functionality (6 tests):
 
 ---
 
+## 🏢 Testing Enterprise MCP Tool Servers
+
+### Overview
+
+Enterprise MCP tool servers integrate with the OAuth 2.0 infrastructure to provide secure, token-based access to business-critical tools and resources. This section explains how to test your enterprise MCP servers with OAuth 2.0 protection.
+
+### Prerequisites
+
+Before testing enterprise MCP servers, ensure you have:
+1. ✅ Authorization Server running (port 4000)
+2. ✅ OAuth client credentials (from dynamic registration)
+3. ✅ Required scopes defined for your tools
+4. ✅ Resource indicators configured (e.g., `mcp://enterprise/tools`)
+
+### Step 1: Configure Your Enterprise MCP Server
+
+Add OAuth 2.0 protection to your enterprise MCP server:
+
+```typescript
+import { HttpResourceServerTransport } from './src/transport/http/resource-server-transport.js';
+import { protectResource } from './src/auth/resource-server/middleware.js';
+import express from 'express';
+
+// Initialize with OAuth 2.0 support
+const transport = new HttpResourceServerTransport('2025-06-18', {
+  enabled: true,
+  authorizationServer: 'http://localhost:4000', // Your auth server
+});
+
+await transport.initialize({
+  type: 'http',
+  host: 'localhost',
+  port: 5000, // Your server port
+  cors: true,
+});
+
+const app = transport.getApp();
+
+// Protect your enterprise tools endpoint
+app.get(
+  '/mcp/enterprise/tools',
+  protectResource({
+    requiredScopes: ['enterprise.tools.read'],
+    requiredResource: 'mcp://enterprise/tools',
+  }),
+  (req, res) => {
+    res.json({
+      tools: [
+        {
+          name: 'crm-lookup',
+          description: 'Query CRM customer data',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              customerId: { type: 'string' }
+            }
+          }
+        },
+        {
+          name: 'database-query',
+          description: 'Execute SQL queries on enterprise database',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' },
+              database: { type: 'string' }
+            }
+          }
+        }
+      ]
+    });
+  }
+);
+
+// Protect tool execution endpoint
+app.post(
+  '/mcp/enterprise/tools/execute',
+  protectResource({
+    requiredScopes: ['enterprise.tools.execute'],
+    requiredResource: 'mcp://enterprise/tools',
+  }),
+  (req, res) => {
+    const { toolName, arguments: args } = req.body;
+
+    // Execute tool logic here
+    res.json({
+      result: `Executed ${toolName}`,
+      success: true
+    });
+  }
+);
+
+await transport.start();
+console.log('Enterprise MCP Server running on port 5000');
+```
+
+### Step 2: Register Your Enterprise Application
+
+Register your enterprise client application:
+
+```bash
+curl -X POST http://localhost:4000/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "Enterprise AI Assistant",
+    "client_type": "confidential",
+    "redirect_uris": ["https://your-app.company.com/callback"],
+    "grant_types": ["client_credentials", "authorization_code"],
+    "scope": "enterprise.tools.read enterprise.tools.execute"
+  }'
+```
+
+**Response:**
+```json
+{
+  "client_id": "client_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "client_secret": "secret_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "client_name": "Enterprise AI Assistant",
+  "client_type": "confidential",
+  "grant_types": ["client_credentials", "authorization_code"],
+  "redirect_uris": ["https://your-app.company.com/callback"],
+  "scope": "enterprise.tools.read enterprise.tools.execute"
+}
+```
+
+Save the `client_id` and `client_secret` securely!
+
+### Step 3: Obtain Access Token
+
+Use client credentials flow for server-to-server access:
+
+```bash
+curl -X POST http://localhost:4000/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "client_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "client_secret": "secret_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "scope": "enterprise.tools.read enterprise.tools.execute",
+    "resource": "mcp://enterprise/tools"
+  }'
+```
+
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "enterprise.tools.read enterprise.tools.execute",
+  "resource": ["mcp://enterprise/tools"]
+}
+```
+
+### Step 4: Access Protected Enterprise Tools
+
+**List Available Tools:**
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..." \
+  http://localhost:5000/mcp/enterprise/tools
+```
+
+**Expected Response:**
+```json
+{
+  "tools": [
+    {
+      "name": "crm-lookup",
+      "description": "Query CRM customer data",
+      "inputSchema": { ... }
+    },
+    {
+      "name": "database-query",
+      "description": "Execute SQL queries on enterprise database",
+      "inputSchema": { ... }
+    }
+  ]
+}
+```
+
+**Execute a Tool:**
+```bash
+curl -X POST http://localhost:5000/mcp/enterprise/tools/execute \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toolName": "crm-lookup",
+    "arguments": {
+      "customerId": "CUST-12345"
+    }
+  }'
+```
+
+### Step 5: Test Error Cases
+
+**Missing Token (401 Unauthorized):**
+```bash
+curl -v http://localhost:5000/mcp/enterprise/tools
+# Expected: HTTP 401 with error: "invalid_token"
+```
+
+**Invalid Token (401 Unauthorized):**
+```bash
+curl -H "Authorization: Bearer invalid_token_here" \
+  http://localhost:5000/mcp/enterprise/tools
+# Expected: HTTP 401 with error: "invalid_token"
+```
+
+**Insufficient Scope (403 Forbidden):**
+```bash
+# Get token with only 'enterprise.tools.read' scope
+curl -X POST http://localhost:4000/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_SECRET",
+    "scope": "enterprise.tools.read",
+    "resource": "mcp://enterprise/tools"
+  }'
+
+# Try to execute tool (requires 'enterprise.tools.execute')
+curl -X POST http://localhost:5000/mcp/enterprise/tools/execute \
+  -H "Authorization: Bearer <token_from_above>" \
+  -H "Content-Type: application/json" \
+  -d '{"toolName": "crm-lookup", "arguments": {}}'
+
+# Expected: HTTP 403 with error: "insufficient_scope"
+```
+
+**Wrong Resource (403 Forbidden):**
+```bash
+# Get token for different resource
+curl -X POST http://localhost:4000/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_SECRET",
+    "scope": "enterprise.tools.read",
+    "resource": "mcp://different/resource"
+  }'
+
+# Try to access enterprise tools
+curl -H "Authorization: Bearer <token_from_above>" \
+  http://localhost:5000/mcp/enterprise/tools
+
+# Expected: HTTP 403 with error: "invalid_token"
+```
+
+### Step 6: Integration Testing
+
+Create an automated test for your enterprise MCP server:
+
+```typescript
+// test-enterprise-server.ts
+import { OAuthClient } from '../../src/auth/client/oauth-client.js';
+
+async function testEnterpriseServer() {
+  // Initialize OAuth client
+  const client = new OAuthClient({
+    clientId: process.env.ENTERPRISE_CLIENT_ID!,
+    clientSecret: process.env.ENTERPRISE_CLIENT_SECRET!,
+    authorizationServer: 'http://localhost:4000',
+  });
+
+  console.log('Test 1: List enterprise tools');
+  const tokens = await client.getClientCredentialsToken(
+    'enterprise.tools.read enterprise.tools.execute',
+    'mcp://enterprise/tools'
+  );
+
+  const toolsResponse = await client.fetch(
+    'http://localhost:5000/mcp/enterprise/tools'
+  );
+  const tools = await toolsResponse.json();
+  console.log('✅ Tools retrieved:', tools.tools.length);
+
+  console.log('\nTest 2: Execute enterprise tool');
+  const executeResponse = await client.fetch(
+    'http://localhost:5000/mcp/enterprise/tools/execute',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toolName: 'crm-lookup',
+        arguments: { customerId: 'CUST-12345' }
+      })
+    }
+  );
+  const result = await executeResponse.json();
+  console.log('✅ Tool executed:', result);
+
+  console.log('\nTest 3: Verify token scope enforcement');
+  const limitedClient = new OAuthClient({
+    clientId: process.env.ENTERPRISE_CLIENT_ID!,
+    clientSecret: process.env.ENTERPRISE_CLIENT_SECRET!,
+    authorizationServer: 'http://localhost:4000',
+  });
+
+  const limitedTokens = await limitedClient.getClientCredentialsToken(
+    'enterprise.tools.read', // Only read, not execute
+    'mcp://enterprise/tools'
+  );
+
+  try {
+    await limitedClient.fetch(
+      'http://localhost:5000/mcp/enterprise/tools/execute',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toolName: 'crm-lookup',
+          arguments: {}
+        })
+      }
+    );
+    console.log('❌ Should have been forbidden');
+  } catch (error) {
+    console.log('✅ Correctly rejected insufficient scope');
+  }
+
+  console.log('\n✅ All enterprise server tests passed!');
+}
+
+testEnterpriseServer().catch(console.error);
+```
+
+### Step 7: Performance Testing
+
+Test your enterprise server under load:
+
+```bash
+# Install Apache Bench
+apt-get install apache2-utils
+
+# Get access token
+export TOKEN="eyJhbGciOiJSUzI1NiIs..."
+
+# Test with 100 concurrent requests
+ab -n 1000 -c 100 \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:5000/mcp/enterprise/tools
+
+# Monitor server logs for performance metrics
+```
+
+### Best Practices for Enterprise MCP Servers
+
+1. **Granular Scopes**: Define specific scopes for different operations
+   ```
+   enterprise.tools.read       - List available tools
+   enterprise.tools.execute    - Execute tools
+   enterprise.data.read        - Read enterprise data
+   enterprise.data.write       - Modify enterprise data
+   enterprise.admin            - Administrative operations
+   ```
+
+2. **Resource Indicators**: Use hierarchical resource identifiers
+   ```
+   mcp://enterprise/tools
+   mcp://enterprise/crm
+   mcp://enterprise/database
+   mcp://enterprise/analytics
+   ```
+
+3. **Audit Logging**: Log all OAuth-protected access
+   ```typescript
+   app.use((req, res, next) => {
+     if (req.auth) {
+       logger.info('OAuth Access', {
+         client_id: req.auth.client_id,
+         scope: req.auth.scope,
+         resource: req.auth.resource,
+         endpoint: req.path,
+         timestamp: new Date().toISOString()
+       });
+     }
+     next();
+   });
+   ```
+
+4. **Rate Limiting**: Protect against abuse
+   ```typescript
+   import rateLimit from 'express-rate-limit';
+
+   const enterpriseLimiter = rateLimit({
+     windowMs: 60 * 1000, // 1 minute
+     max: 100, // 100 requests per minute per client
+     keyGenerator: (req) => req.auth?.client_id || req.ip
+   });
+
+   app.use('/mcp/enterprise', enterpriseLimiter);
+   ```
+
+5. **Health Checks**: Monitor OAuth integration
+   ```typescript
+   app.get('/health', async (req, res) => {
+     try {
+       // Verify auth server is reachable
+       const jwksResponse = await fetch(
+         'http://localhost:4000/oauth/jwks'
+       );
+       const jwksOk = jwksResponse.ok;
+
+       res.json({
+         status: jwksOk ? 'healthy' : 'degraded',
+         oauth: {
+           authServer: 'http://localhost:4000',
+           jwksAccessible: jwksOk
+         },
+         timestamp: new Date().toISOString()
+       });
+     } catch (error) {
+       res.status(503).json({
+         status: 'unhealthy',
+         error: error.message
+       });
+     }
+   });
+   ```
+
+### Troubleshooting Enterprise Servers
+
+**Problem: "JWKS fetch failed"**
+```
+[ResourceServer] Failed to fetch JWKS
+Error: connect ECONNREFUSED 127.0.0.1:4000
+```
+
+**Solution:**
+- Ensure authorization server is running on port 4000
+- Check network connectivity between servers
+- Verify firewall rules allow access to JWKS endpoint
+- Check auth server logs: `npm run example:oauth:auth-server`
+
+**Problem: "Token validation fails intermittently"**
+
+**Solution:**
+- Implement JWKS caching to reduce network calls
+- Add retry logic with exponential backoff
+- Monitor auth server health and performance
+
+**Problem: "Scope requirements unclear"**
+
+**Solution:**
+- Document all available scopes in API documentation
+- Return clear error messages indicating required scopes
+- Use OpenAPI/Swagger spec to define scope requirements
+
+---
+
 ## 🐛 Troubleshooting
 
 ### "invalid signature" Error
