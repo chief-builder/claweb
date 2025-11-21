@@ -36,11 +36,24 @@ export class MCPClient {
 
   /**
    * Connect to an MCP server via stdio
+   * @param serverCommand - Command to run (e.g., 'node')
+   * @param serverArgs - Arguments for the command (e.g., ['server.js'])
+   * @param env - Optional environment variables to pass to the subprocess
    */
-  async connect(serverCommand: string, serverArgs: string[] = []) {
+  async connect(
+    serverCommand: string,
+    serverArgs: string[] = [],
+    env?: Record<string, string>
+  ) {
+    // Merge provided env with current process env to ensure all required vars are available
+    const processEnv = env
+      ? { ...process.env, ...env }
+      : process.env;
+
     this.transport = new StdioClientTransport({
       command: serverCommand,
       args: serverArgs,
+      env: processEnv as Record<string, string>,
     });
 
     await this.client.connect(this.transport);
