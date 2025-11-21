@@ -18,34 +18,61 @@ This reference implementation showcases a progressive learning path:
 ### Agent Progression (Simple → Advanced)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           AGENT COMPLEXITY PROGRESSION                           │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                   │
-│  Level 1: Simple Agent          Level 2: Intelligent Agent                       │
-│  ┌─────────────────────┐        ┌─────────────────────────┐                      │
-│  │   Simple Agent      │        │   Intelligent Agent     │                      │
-│  │   (Rule-based)      │        │   (Claude Haiku)        │                      │
-│  │                     │        │                         │                      │
-│  │ • Pattern matching  │   →    │ • Natural language      │                      │
-│  │ • Pre-defined       │        │ • Smart tool selection  │                      │
-│  │   workflows         │        │ • Multi-step reasoning  │                      │
-│  │ • Single server     │        │ • Single server         │                      │
-│  └──────────┬──────────┘        └──────────┬──────────────┘                      │
-│             │                              │                                      │
-│             ▼                              ▼                                      │
-│  Level 3: OAuth Intelligent Agent   Level 4: Web Chat Application               │
-│  ┌─────────────────────────┐        ┌───────────────────────────────┐           │
-│  │ OAuth Intelligent Agent │        │      Web Chat Server          │           │
-│  │ (Multi-Server + Auth)   │        │   (Express + MCP + OAuth)     │           │
-│  │                         │        │                               │           │
-│  │ • OAuth 2.1 + PKCE      │   →    │ • RESTful API                 │           │
-│  │ • Multiple MCP servers  │        │ • Session management          │           │
-│  │ • Token management      │        │ • GitHub + Playwright MCP     │           │
-│  │ • Scope-based access    │        │ • Production-ready            │           │
-│  └─────────────────────────┘        └───────────────────────────────┘           │
-│                                                                                   │
-└─────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│              AGENT COMPLEXITY PROGRESSION                    │
+│                      1 → 2 → 3 → 4                           │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│  Level 1: Simple Agent                                       │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  src/agent/simple-agent.ts                             │  │
+│  │                                                        │  │
+│  │  • Rule-based pattern matching                         │  │
+│  │  • Pre-defined workflows                               │  │
+│  │  • Single MCP server connection                        │  │
+│  │  • No AI - direct tool invocation                      │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼ + Claude AI
+┌──────────────────────────────────────────────────────────────┐
+│  Level 2: Intelligent Agent                                  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  src/agent/intelligent-agent.ts                        │  │
+│  │                                                        │  │
+│  │  • Natural language understanding (Claude Haiku)       │  │
+│  │  • Automatic tool selection                            │  │
+│  │  • Multi-step reasoning & tool chaining                │  │
+│  │  • Conversation history management                     │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼ + OAuth + Multi-Server
+┌──────────────────────────────────────────────────────────────┐
+│  Level 3: OAuth Intelligent Agent                            │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  src/agent/oauth-intelligent-agent.ts                  │  │
+│  │                                                        │  │
+│  │  • OAuth 2.1 authentication with PKCE                  │  │
+│  │  • Multiple MCP server connections                     │  │
+│  │  • Token management & scope-based access               │  │
+│  │  • Tool namespacing (serverName__toolName)             │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼ + Web Server + Sessions
+┌──────────────────────────────────────────────────────────────┐
+│  Level 4: Web Chat Application                               │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  src/web-chat/server.ts                                │  │
+│  │                                                        │  │
+│  │  • Express.js REST API                                 │  │
+│  │  • Session-based agent management                      │  │
+│  │  • GitHub MCP + Playwright MCP integration             │  │
+│  │  • Production-ready with graceful shutdown             │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### System Architecture
