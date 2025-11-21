@@ -86,6 +86,10 @@ export class OAuthIntelligentAgent {
     let tokens: TokenSet | undefined;
     let oauthClient: OAuthClient | undefined;
 
+    // Build environment variables to pass to subprocess
+    // Always pass through important env vars like GITHUB_TOKEN
+    const serverEnv: Record<string, string> = {};
+
     // Handle OAuth if configured
     if (config.oauth?.enabled) {
       console.error('   🔐 OAuth authentication required');
@@ -102,11 +106,18 @@ export class OAuthIntelligentAgent {
       // Get tokens (in a real application, this would involve user interaction)
       tokens = await this.obtainTokens(oauthClient, config.oauth.scopes);
 
+      // Pass token to subprocess environment
+      if (tokens.access_token) {
+        serverEnv.GITHUB_TOKEN = tokens.access_token;
+        serverEnv.GITHUB_ACCESS_TOKEN = tokens.access_token;
+        serverEnv.OAUTH_ACCESS_TOKEN = tokens.access_token;
+      }
+
       console.error('   ✅ OAuth authentication successful');
     }
 
-    // Connect to MCP server
-    await client.connect(config.command, config.args || []);
+    // Connect to MCP server with environment variables
+    await client.connect(config.command, config.args || [], serverEnv);
 
     // Store server connection
     this.servers.set(config.name, { client, oauth: oauthClient, tokens });
