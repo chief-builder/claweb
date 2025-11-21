@@ -60,13 +60,15 @@ class GitHubMCPServer {
         {
           name: 'list_repositories',
           title: 'List Repositories',
-          description: 'List repositories for the authenticated user or a specific user/organization',
+          description:
+            'List repositories for the authenticated user or a specific user/organization. To list YOUR OWN repositories, call with empty object {} or omit the username parameter entirely.',
           inputSchema: {
             type: 'object',
             properties: {
               username: {
                 type: 'string',
-                description: 'Username or organization (optional, uses authenticated user if not provided)',
+                description:
+                  'GitHub username or organization name. LEAVE EMPTY or omit to list repositories for the currently authenticated user. Only provide a value if you want to list someone else\'s public repos.',
               },
               type: {
                 type: 'string',
@@ -494,7 +496,23 @@ class GitHubMCPServer {
   }
 
   private async handleListRepositories(args: any) {
-    const username = args.username;
+    // Sanitize username - ignore placeholder values that LLMs might hallucinate
+    let username = args.username;
+    const placeholderPatterns = [
+      /^your[_-]?github[_-]?username$/i,
+      /^your[_-]?username$/i,
+      /^username$/i,
+      /^user$/i,
+      /^<.*>$/,
+      /^\[.*\]$/,
+      /^{.*}$/,
+    ];
+
+    if (username && placeholderPatterns.some((pattern) => pattern.test(username))) {
+      console.error(`Ignoring placeholder username: ${username}`);
+      username = undefined;
+    }
+
     const type = args.type || 'all';
     const sort = args.sort || 'updated';
     const per_page = args.per_page || 30;
