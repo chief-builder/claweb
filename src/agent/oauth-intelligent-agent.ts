@@ -233,6 +233,22 @@ export class OAuthIntelligentAgent {
       response = await this.anthropic.messages.create({
         model: 'claude-3-haiku-20240307',
         max_tokens: 4096,
+        system: `You are a helpful assistant with access to GitHub and browser automation tools.
+
+IMPORTANT INSTRUCTIONS:
+1. When you receive data from tool calls, ALWAYS display the actual data to the user - don't just describe it or summarize it vaguely.
+2. For lists of items (repositories, issues, pull requests, etc.), format them clearly with the key details visible.
+3. Use markdown formatting for readability.
+4. If a tool returns structured data, present the relevant fields to the user.
+
+Example of GOOD response after getting issues:
+"Here are the open issues:
+- #42: Fix login bug
+- #38: Add dark mode support
+- #35: Update documentation"
+
+Example of BAD response:
+"The tool returned the issues. Let me know if you need more details."`,
         tools: this.tools,
         messages: this.conversationHistory,
       });
