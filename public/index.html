@@ -262,7 +262,7 @@
     <div class="container">
         <div class="header">
             <h1>🤖 MCP Chat Assistant</h1>
-            <p>Powered by Claude + GitHub MCP Server</p>
+            <p>Powered by Claude + GitHub & Playwright MCP Servers</p>
         </div>
 
         <div class="status">
@@ -278,13 +278,18 @@
         <div class="messages" id="messages">
             <div class="message message-assistant">
                 <div class="message-content">
-                    Welcome! I'm your GitHub assistant powered by MCP. I can help you:
+                    Welcome! I'm your assistant powered by MCP. I have access to:
 
-                    • List your repositories
-                    • View repository details
-                    • Check issues and pull requests
+                    📂 **GitHub Tools:**
+                    • List repositories, issues, and pull requests
+                    • View repository details and file contents
                     • Search code across GitHub
-                    • Get file contents
+
+                    🌐 **Browser Automation (Playwright):**
+                    • Navigate to websites
+                    • Take screenshots
+                    • Extract text from pages
+                    • Click elements and fill forms
 
                     Try asking me something!
                 </div>
@@ -294,11 +299,14 @@
                 <div class="suggestion" onclick="sendSuggestion('List my GitHub repositories')">
                     📚 List my repositories
                 </div>
+                <div class="suggestion" onclick="sendSuggestion('Navigate to https://example.com and take a screenshot')">
+                    🌐 Visit example.com
+                </div>
+                <div class="suggestion" onclick="sendSuggestion('Navigate to https://news.ycombinator.com and extract the first story title')">
+                    📰 Get HN top story
+                </div>
                 <div class="suggestion" onclick="sendSuggestion('Show me open issues in chief-builder/claweb')">
                     🐛 Show open issues
-                </div>
-                <div class="suggestion" onclick="sendSuggestion('Get details about chief-builder/claweb')">
-                    📊 Repository details
                 </div>
             </div>
         </div>
@@ -308,7 +316,7 @@
                 <input
                     type="text"
                     id="messageInput"
-                    placeholder="Ask me about your GitHub repositories..."
+                    placeholder="Ask about GitHub repos or browse the web..."
                     onkeypress="handleKeyPress(event)"
                 >
                 <button id="sendButton" onclick="sendMessage()">Send</button>

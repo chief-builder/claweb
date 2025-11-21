@@ -172,13 +172,21 @@ class PlaywrightMCPServer {
         {
           name: 'extract_text',
           title: 'Extract Text',
-          description: 'Extract text content from the page or a specific element',
+          description:
+            'Extract text content from the page or specific element(s). If selector matches multiple elements, returns all texts numbered. Use first=true to get only the first match.',
           inputSchema: {
             type: 'object',
             properties: {
               selector: {
                 type: 'string',
-                description: 'CSS selector for element (optional, extracts from body if not provided)',
+                description:
+                  'CSS selector for element (optional, extracts from body if not provided). For first story on HN use ".titleline > a" with first=true.',
+              },
+              first: {
+                type: 'boolean',
+                description:
+                  'If true, only extract text from the first matching element. Useful when selector matches multiple elements but you only want the first one.',
+                default: false,
               },
             },
           },
@@ -188,6 +196,7 @@ class PlaywrightMCPServer {
               success: { type: 'boolean' },
               text: { type: 'string' },
               selector: { type: 'string' },
+              matchCount: { type: 'number' },
               timestamp: { type: 'string', format: 'date-time' },
             },
             required: ['success', 'text'],
@@ -435,16 +444,36 @@ class PlaywrightMCPServer {
     };
   }
 
-  private async handleExtractText(args: { selector?: string }) {
+  private async handleExtractText(args: { selector?: string; first?: boolean }) {
     if (!this.page) throw new Error('Browser not initialized');
 
     const selector = args.selector || 'body';
-    const text = await this.page.locator(selector).textContent() || '';
+    const locator = this.page.locator(selector);
+
+    // Count matching elements
+    const count = await locator.count();
+
+    let text: string;
+    let matchCount = count;
+
+    if (count === 0) {
+      text = '';
+      matchCount = 0;
+    } else if (count === 1 || args.first) {
+      // Single element or explicitly requested first
+      text = await locator.first().textContent() || '';
+      matchCount = args.first ? 1 : count;
+    } else {
+      // Multiple elements - return all texts joined
+      const allTexts = await locator.allTextContents();
+      text = allTexts.map((t, i) => `[${i + 1}] ${t.trim()}`).join('\n');
+    }
 
     const structured = {
       success: true,
       text,
       selector,
+      matchCount,
       timestamp: new Date().toISOString(),
     };
 
@@ -452,7 +481,9 @@ class PlaywrightMCPServer {
       content: [
         {
           type: 'text',
-          text: `Extracted text from ${selector}:\n${text}`,
+          text: count > 1 && !args.first
+            ? `Found ${count} elements matching ${selector}:\n${text}`
+            : `Extracted text from ${selector}:\n${text}`,
         },
       ],
       structuredContent: structured,
