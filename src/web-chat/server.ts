@@ -45,6 +45,17 @@ async function createAgentSession(sessionId: string): Promise<OAuthIntelligentAg
         scopes: ['repo', 'user', 'read:org'],
       },
     },
+    {
+      name: 'playwright',
+      command: 'node',
+      args: ['dist/mcp-servers/playwright-server.js'],
+      oauth: {
+        enabled: false,
+        authorizationServer: '',
+        clientId: '',
+        scopes: [],
+      },
+    },
   ];
 
   await agent.initialize(serverConfigs);
