@@ -1,52 +1,113 @@
 # MCP Reference Implementation
 
-A comprehensive reference implementation of the Model Context Protocol (MCP) using the official TypeScript SDK. This project demonstrates how to build MCP servers, clients, and agents with practical examples.
+A comprehensive reference implementation of the Model Context Protocol (MCP) using the official TypeScript SDK. This project demonstrates how to build MCP servers, clients, and agents with practical examples - from simple rule-based agents to production-ready web applications with OAuth authentication.
 
 ## 📋 Overview
 
-This reference implementation showcases:
+This reference implementation showcases a progressive learning path:
 
-- **MCP Server**: A fully-featured server exposing tools, resources, and prompts
-- **MCP Client**: A client that connects to servers and interacts with their capabilities
-- **Simple Agent**: A demonstration of tool orchestration and workflow execution
-- **Intelligent Agent**: An AI-powered agent using Claude Haiku for smart tool selection 🧠
+1. **MCP Server**: A fully-featured server exposing tools, resources, and prompts
+2. **MCP Client**: A client that connects to servers and interacts with their capabilities
+3. **Simple Agent**: Rule-based tool orchestration and workflow execution
+4. **Intelligent Agent**: AI-powered agent using Claude for smart tool selection 🧠
+5. **OAuth Intelligent Agent**: Multi-server agent with OAuth 2.1 authentication 🔐
+6. **Web Chat**: Production-ready web interface with GitHub & Playwright MCP integration 🌐
 
 ## 🏗️ Architecture
 
+### Agent Progression (Simple → Advanced)
+
 ```
-        ┌───────────────────────┐       ┌───────────────────────┐
-        │  Intelligent Agent    │       │    Simple Agent       │
-        │  (Claude Haiku +      │       │  (Rule-based +        │
-        │   MCP Client)         │       │   MCP Client)         │
-        │                       │       │                       │
-        │ • Natural language    │       │ • Pre-defined         │
-        │   understanding       │       │   workflows           │
-        │ • Smart tool          │       │ • Pattern             │
-        │   selection           │       │   matching            │
-        │ • Multi-step          │       │ • Demonstration       │
-        │   reasoning           │       │   purposes            │
-        └───────────┬───────────┘       └───────────┬───────────┘
-                    │                               │
-                    └───────────────┬───────────────┘
-                                    │
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │        MCP Client             │
-                    │ • Discovers server            │
-                    │   capabilities                │
-                    │ • Invokes tools and           │
-                    │   reads resources             │
-                    └───────────────┬───────────────┘
-                                    │ stdio transport
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │        MCP Server             │
-                    │ • Tools: calculator, echo,    │
-                    │   time, logs                  │
-                    │ • Resources: config, status   │
-                    │ • Prompts: code_review        │
-                    │ • MCP 2025-06-18 compliant ✅ │
-                    └───────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│              AGENT COMPLEXITY PROGRESSION                    │
+│                      1 → 2 → 3 → 4                           │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│  Level 1: Simple Agent                                       │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  src/agent/simple-agent.ts                             │  │
+│  │                                                        │  │
+│  │  • Rule-based pattern matching                         │  │
+│  │  • Pre-defined workflows                               │  │
+│  │  • Single MCP server connection                        │  │
+│  │  • No AI - direct tool invocation                      │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼ + Claude AI
+┌──────────────────────────────────────────────────────────────┐
+│  Level 2: Intelligent Agent                                  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  src/agent/intelligent-agent.ts                        │  │
+│  │                                                        │  │
+│  │  • Natural language understanding (Claude Haiku)       │  │
+│  │  • Automatic tool selection                            │  │
+│  │  • Multi-step reasoning & tool chaining                │  │
+│  │  • Conversation history management                     │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼ + OAuth + Multi-Server
+┌──────────────────────────────────────────────────────────────┐
+│  Level 3: OAuth Intelligent Agent                            │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  src/agent/oauth-intelligent-agent.ts                  │  │
+│  │                                                        │  │
+│  │  • OAuth 2.1 authentication with PKCE                  │  │
+│  │  • Multiple MCP server connections                     │  │
+│  │  • Token management & scope-based access               │  │
+│  │  • Tool namespacing (serverName__toolName)             │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼ + Web Server + Sessions
+┌──────────────────────────────────────────────────────────────┐
+│  Level 4: Web Chat Application                               │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  src/web-chat/server.ts                                │  │
+│  │                                                        │  │
+│  │  • Express.js REST API                                 │  │
+│  │  • Session-based agent management                      │  │
+│  │  • GitHub MCP + Playwright MCP integration             │  │
+│  │  • Production-ready with graceful shutdown             │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              WEB CHAT APPLICATION                                │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                        Browser Client                                    │    │
+│  │                    (http://localhost:3001)                               │    │
+│  └─────────────────────────────────┬───────────────────────────────────────┘    │
+│                                    │ HTTP/REST API                              │
+│                                    ▼                                            │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                      Express Server (web-chat/server.ts)                 │    │
+│  │  • Session management • API endpoints • Static file serving              │    │
+│  └─────────────────────────────────┬───────────────────────────────────────┘    │
+│                                    │                                            │
+│                                    ▼                                            │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │              OAuth Intelligent Agent (oauth-intelligent-agent.ts)        │    │
+│  │  • Claude integration • Multi-server routing • OAuth token handling      │    │
+│  └────────────────────┬────────────────────────────────┬───────────────────┘    │
+│                       │                                │                        │
+│          ┌────────────▼────────────┐      ┌────────────▼────────────┐          │
+│          │   GitHub MCP Server     │      │  Playwright MCP Server  │          │
+│          │  (OAuth Protected)      │      │  (Browser Automation)   │          │
+│          │                         │      │                         │          │
+│          │ • list_repositories     │      │ • navigate              │          │
+│          │ • get_repository        │      │ • screenshot            │          │
+│          │ • list_issues           │      │ • click                 │          │
+│          │ • search_code           │      │ • extract_text          │          │
+│          │ • get_file_contents     │      │ • fill                  │          │
+│          └─────────────────────────┘      └─────────────────────────┘          │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -94,21 +155,61 @@ The client will:
 4. Read resources
 5. Display results
 
-### Running the Agent
+## 🤖 Agent Types (Progressive Learning Path)
+
+This project demonstrates four levels of agent complexity, each building on the previous:
+
+---
+
+### Level 1: Simple Agent 📋
+
+**File:** `src/agent/simple-agent.ts`
+
+A rule-based agent that demonstrates basic MCP tool orchestration without AI. Perfect for understanding MCP fundamentals.
 
 ```bash
 npm run agent
 ```
 
-The agent will:
-1. Initialize and discover capabilities
-2. Execute a multi-step workflow
-3. Demonstrate tool orchestration
-4. Perform custom tasks
+**Features:**
+- Pattern matching for task routing
+- Pre-defined workflows
+- Direct tool invocation
+- Single MCP server connection
 
-### Running the Intelligent Agent 🧠
+**What it demonstrates:**
+1. Connecting to an MCP server
+2. Discovering available tools and resources
+3. Executing tool calls
+4. Reading resources
+5. Basic workflow orchestration
 
-**NEW!** An AI-powered agent using Claude Haiku for intelligent tool selection:
+**Example Usage:**
+```typescript
+import { SimpleAgent } from './src/agent/simple-agent.js';
+
+const agent = new SimpleAgent();
+await agent.initialize('node', ['dist/server/index.js']);
+
+// Execute predefined workflows
+await agent.executeWorkflow();
+
+// Execute custom tasks (pattern-matched)
+await agent.executeTask('Calculate 42 multiply 3');
+await agent.executeTask('What is the current time?');
+
+await agent.shutdown();
+```
+
+**Best for:** Learning MCP basics, testing server tools, simple automation.
+
+---
+
+### Level 2: Intelligent Agent 🧠
+
+**File:** `src/agent/intelligent-agent.ts`
+
+An AI-powered agent using Claude Haiku for intelligent tool selection based on natural language.
 
 ```bash
 # Set your Anthropic API key first
@@ -121,18 +222,180 @@ npm run dev:agent:intelligent
 npm run example:interactive
 ```
 
-The intelligent agent:
-1. Uses Claude Haiku to understand natural language queries
-2. Automatically selects and chains the right tools
-3. Handles complex multi-step workflows
-4. Provides natural language responses
+**Features:**
+- Natural language understanding via Claude
+- Automatic tool selection
+- Multi-step reasoning and tool chaining
+- Conversation history management
+- Single MCP server connection
+
+**What it demonstrates:**
+1. Converting MCP tools to Claude's tool format
+2. Implementing an agentic loop
+3. Handling tool use responses
+4. Managing conversation context
+
+**Example Usage:**
+```typescript
+import { IntelligentAgent } from './src/agent/intelligent-agent.js';
+
+const agent = new IntelligentAgent();
+await agent.initialize('node', ['dist/server/index.js']);
+
+// Natural language queries
+const response = await agent.processQuery(
+  'Calculate 50 times 3, then tell me the current time'
+);
+console.log(response);
+
+// Multi-turn conversations (remembers context)
+await agent.processQuery('Now divide that result by 5');
+
+agent.resetConversation(); // Clear history
+await agent.shutdown();
+```
 
 **Example queries:**
 - "What is 42 times 7?"
 - "Calculate 100 divided by 5, then add 30 to the result"
 - "Tell me the current time and server status"
 
+**Best for:** Natural language interfaces, smart automation, learning Claude tool use.
+
 See [INTELLIGENT_AGENT.md](./INTELLIGENT_AGENT.md) for detailed documentation.
+
+---
+
+### Level 3: OAuth Intelligent Agent 🔐
+
+**File:** `src/agent/oauth-intelligent-agent.ts`
+
+A multi-server agent with OAuth 2.1 authentication support for connecting to protected MCP resources.
+
+```bash
+# Set required environment variables
+export ANTHROPIC_API_KEY=your-api-key-here
+export GITHUB_TOKEN=ghp_your_github_token_here
+
+# Run the OAuth-aware agent
+npm run dev:agent:oauth
+```
+
+**Features:**
+- OAuth 2.1 authentication with PKCE support
+- Multiple MCP server connections
+- Scope-based access control
+- Token management (environment variables or interactive flow)
+- Tool namespacing (prevents conflicts between servers)
+
+**What it demonstrates:**
+1. Configuring multiple MCP servers
+2. OAuth token handling for protected resources
+3. Routing tool calls to correct servers
+4. Namespaced tool names (`serverName__toolName`)
+
+**Example Usage:**
+```typescript
+import { OAuthIntelligentAgent, type MCPServerConfig } from './src/agent/oauth-intelligent-agent.js';
+
+const agent = new OAuthIntelligentAgent();
+
+const serverConfigs: MCPServerConfig[] = [
+  {
+    name: 'github',
+    command: 'node',
+    args: ['dist/mcp-servers/github-server.js'],
+    oauth: {
+      enabled: true,
+      authorizationServer: 'https://github.com',
+      clientId: 'github-mcp-client',
+      scopes: ['repo', 'user'],
+    },
+  },
+  {
+    name: 'playwright',
+    command: 'node',
+    args: ['dist/mcp-servers/playwright-server.js'],
+    oauth: { enabled: false, authorizationServer: '', clientId: '', scopes: [] },
+  },
+];
+
+await agent.initialize(serverConfigs);
+
+// Query uses tools from multiple servers
+const response = await agent.processQuery('List my GitHub repositories');
+console.log(response);
+
+await agent.shutdown();
+```
+
+**Example queries:**
+- "List my GitHub repositories"
+- "Get details about owner/repo repository"
+- "What issues are open in owner/repo?"
+- "Navigate to github.com and take a screenshot"
+
+**Best for:** Production agents, multi-service integration, OAuth-protected APIs.
+
+---
+
+### Level 4: Web Chat Application 🌐
+
+**Files:** `src/web-chat/server.ts`, `public/index.html`
+
+A production-ready web application with a chat interface, session management, and multi-MCP server integration.
+
+```bash
+# Set required environment variables
+export ANTHROPIC_API_KEY=your-api-key-here
+export GITHUB_TOKEN=ghp_your_github_token_here
+
+# Build and run
+npm run build
+npm run web-chat
+
+# Or development mode with auto-reload
+npm run dev:web-chat
+```
+
+**Features:**
+- Express.js web server
+- RESTful API endpoints
+- Session-based agent instances
+- GitHub MCP server integration (OAuth)
+- Playwright MCP server integration (browser automation)
+- Static file serving for frontend
+- Graceful shutdown handling
+
+**API Endpoints:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/sessions` | Create new chat session |
+| GET | `/api/sessions` | List active sessions |
+| GET | `/api/sessions/:id` | Get session info |
+| POST | `/api/chat` | Send chat message |
+| POST | `/api/sessions/:id/reset` | Reset conversation |
+| DELETE | `/api/sessions/:id` | Delete session |
+| GET | `/api/health` | Health check |
+
+**Example API Usage:**
+```bash
+# Create a session
+curl -X POST http://localhost:3001/api/sessions
+
+# Send a message
+curl -X POST http://localhost:3001/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "session_123_abc",
+    "message": "List my GitHub repositories"
+  }'
+```
+
+**Best for:** Production deployments, web interfaces, team collaboration tools.
+
+See [docs/WEB_CHAT_QUICKSTART.md](./docs/WEB_CHAT_QUICKSTART.md) for detailed documentation.
 
 ## 🔐 OAuth 2.1 Authentication (NEW!)
 
@@ -337,7 +600,7 @@ Generates a code review prompt for the specified programming language.
 /
 ├── src/
 │   ├── server/
-│   │   ├── index.ts              # Server entry point
+│   │   ├── index.ts              # MCP Server entry point
 │   │   ├── tools/                # Tool implementations
 │   │   │   ├── calculator.ts
 │   │   │   ├── echo.ts
@@ -345,9 +608,24 @@ Generates a code review prompt for the specified programming language.
 │   │   └── resources/            # Resource providers
 │   │       └── config.ts
 │   ├── client/
-│   │   └── index.ts              # Client implementation
-│   └── agent/
-│       └── simple-agent.ts       # Agent implementation
+│   │   └── index.ts              # MCP Client implementation
+│   ├── agent/
+│   │   ├── simple-agent.ts       # Level 1: Rule-based agent
+│   │   ├── intelligent-agent.ts  # Level 2: Claude-powered agent
+│   │   └── oauth-intelligent-agent.ts  # Level 3: Multi-server OAuth agent
+│   ├── web-chat/
+│   │   └── server.ts             # Level 4: Web chat Express server
+│   ├── mcp-servers/
+│   │   ├── github-server.ts      # GitHub MCP server (OAuth-protected)
+│   │   └── playwright-server.ts  # Playwright browser automation MCP server
+│   └── auth/
+│       └── client/
+│           └── oauth-client.ts   # OAuth 2.1 client implementation
+├── public/
+│   └── index.html                # Web chat frontend
+├── docs/
+│   ├── WEB_CHAT_QUICKSTART.md    # Web chat setup guide
+│   └── MCP_SERVERS_GUIDE.md      # MCP servers documentation
 ├── tests/
 │   └── integration.test.ts       # Integration tests
 └── package.json
@@ -572,14 +850,36 @@ This implementation already includes several advanced features:
    - Docs: [INTELLIGENT_AGENT.md](./INTELLIGENT_AGENT.md)
    - Run: `npm run dev:agent:intelligent`
 
-2. **MCP 2025-06-18 Features** ✅
+2. **OAuth Intelligent Agent** ✅
+   - Multi-server MCP connections with OAuth 2.1 authentication
+   - Scope-based access control and token management
+   - Tool namespacing to prevent conflicts between servers
+   - See: `src/agent/oauth-intelligent-agent.ts`
+   - Run: `npm run dev:agent:oauth`
+
+3. **Web Chat Application** ✅
+   - Production-ready Express.js web server
+   - RESTful API with session management
+   - GitHub MCP server integration (OAuth-protected)
+   - Playwright MCP server for browser automation
+   - See: `src/web-chat/server.ts`
+   - Docs: [docs/WEB_CHAT_QUICKSTART.md](./docs/WEB_CHAT_QUICKSTART.md)
+   - Run: `npm run web-chat`
+
+4. **MCP Servers** ✅
+   - **GitHub MCP Server**: Repository management, issues, pull requests, code search
+   - **Playwright MCP Server**: Browser automation, screenshots, navigation, text extraction
+   - See: `src/mcp-servers/`
+   - Docs: [docs/MCP_SERVERS_GUIDE.md](./docs/MCP_SERVERS_GUIDE.md)
+
+5. **MCP 2025-06-18 Features** ✅
    - Structured tool output with schemas
    - Display names (title fields)
    - Metadata fields (_meta)
    - Resource links
    - See: [MCP_2025_06_18_IMPLEMENTATION.md](./MCP_2025_06_18_IMPLEMENTATION.md)
 
-3. **Comprehensive Documentation** ✅
+6. **Comprehensive Documentation** ✅
    - Complete upgrade plans for future spec versions
    - Quick reference guides
    - Implementation examples
@@ -589,19 +889,18 @@ This implementation already includes several advanced features:
 
 Potential areas for expansion:
 
-1. **HTTP Transport**: Add support for HTTP/SSE transport in addition to stdio
-2. **Persistent Resources**: Implement resources backed by databases or file systems
-3. **Enhanced OAuth/RFC 8707**: Complete authentication and authorization implementation
-4. **Elicitation Support**: Enable interactive tool execution with user prompts
-5. **Streaming**: Implement streaming responses for long-running operations
-6. **Subscriptions**: Add resource subscription support for real-time updates
-7. **Advanced Prompts**: Create more sophisticated prompt templates
-8. **Error Recovery**: Implement retry logic and graceful error handling
-9. **Monitoring**: Add metrics and logging capabilities
-10. **Multi-Server**: Demonstrate connecting to multiple MCP servers simultaneously
-11. **Sampling (2025-11-25)**: Servers request LLM completions
-12. **Multimodal (2025-11-25)**: Images, audio, video support
-13. **Agentic Workflows (2025-11-25)**: Multi-agent collaboration
+1. **Persistent Resources**: Implement resources backed by databases or file systems
+2. **Elicitation Support**: Enable interactive tool execution with user prompts
+3. **Streaming**: Implement streaming responses for long-running operations
+4. **Subscriptions**: Add resource subscription support for real-time updates
+5. **Advanced Prompts**: Create more sophisticated prompt templates
+6. **Error Recovery**: Implement retry logic and graceful error handling
+7. **Monitoring**: Add metrics and logging capabilities
+8. **Sampling (2025-11-25)**: Servers request LLM completions
+9. **Multimodal (2025-11-25)**: Images, audio, video support
+10. **Agentic Workflows (2025-11-25)**: Multi-agent collaboration
+11. **WebSocket Support**: Real-time bidirectional communication for web chat
+12. **User Authentication**: Multi-user support with login/session management
 
 See [MCP_UPGRADE_PLAN.md](./MCP_UPGRADE_PLAN.md) for detailed roadmap.
 
