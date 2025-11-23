@@ -88,8 +88,26 @@ app.use(securityHeaders());
 app.use(requestLogger());
 app.use(createRateLimiter(RATE_LIMIT_CONFIG));
 
+// Compute static file paths - use process.cwd() for reliability
+const publicPath = path.join(process.cwd(), 'public/health-chat');
+const indexPath = path.join(publicPath, 'index.html');
+
+// Debug log paths on startup
+console.error(`[DEBUG] Public path: ${publicPath}`);
+console.error(`[DEBUG] Index path: ${indexPath}`);
+
+// Serve the main HTML file FIRST (before static middleware)
+app.get('/', (_req: Request, res: Response) => {
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('[ERROR] Failed to send index.html:', err);
+      res.status(500).json({ error: 'Failed to load UI', path: indexPath });
+    }
+  });
+});
+
 // Serve static files from public/health-chat
-app.use(express.static(path.join(__dirname, '../../public/health-chat')));
+app.use(express.static(publicPath));
 
 /**
  * Session validation middleware
@@ -618,9 +636,18 @@ app.get('/api/sessions', (_req: Request, res: Response) => {
   });
 });
 
-// Serve the main HTML file
-app.get('/', (_req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../../public/health-chat/index.html'));
+// Catch-all 404 handler for undefined routes
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: 'The requested resource was not found',
+    availableEndpoints: [
+      'GET /',
+      'GET /api/health',
+      'POST /api/sessions',
+      'POST /api/chat',
+    ],
+  });
 });
 
 // Start server
