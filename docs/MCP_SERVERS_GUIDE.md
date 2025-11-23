@@ -1,15 +1,21 @@
 # MCP Servers Implementation Guide
 
-This guide covers the implementation of Playwright and GitHub MCP servers with OAuth 2.1 integration.
+This guide covers the implementation of MCP servers including Playwright, GitHub, and Healthcare domain servers with OAuth 2.1 integration and enterprise compliance features.
 
 ## Overview
 
-We have implemented two production-ready MCP servers:
+We have implemented production-ready MCP servers across multiple domains:
 
+### Core Servers
 1. **Playwright MCP Server** - Browser automation capabilities
 2. **GitHub MCP Server** - GitHub API integration with OAuth
 
-Both servers follow MCP 2025-06-18 specification and support OAuth 2.1 authentication.
+### Healthcare Domain Servers (NEW)
+3. **Patient Records MCP Server** - FHIR-compliant patient data with HIPAA controls
+4. **Pharmacy MCP Server** - Drug interactions and medication management
+5. **Clinical Workflow MCP Server** - Scheduling and care coordination
+
+All servers follow MCP 2025-06-18 specification and support structured output, audit trails, and policy-aware execution.
 
 ---
 
@@ -311,6 +317,215 @@ The GitHub server exposes user profile as an MCP resource:
 - **MIME Type**: `application/json`
 - **Content**: Authenticated user profile information
 - **Requires**: OAuth authentication
+
+---
+
+## Healthcare MCP Servers
+
+The healthcare domain servers demonstrate MCP enhancements for enterprise compliance scenarios including HIPAA-compliant audit trails, consent-aware data access, break-glass emergency access, and data minimization patterns.
+
+See [MCP_ENHANCEMENT_PROPOSAL.md](../MCP_ENHANCEMENT_PROPOSAL.md) for detailed design documentation.
+
+### Patient Records MCP Server
+
+**File Location:** `src/mcp-servers/healthcare/patient-records-server.ts`
+
+Provides FHIR-compliant patient data access with comprehensive HIPAA controls.
+
+#### Tools
+
+| Tool | Description | Data Classification |
+|------|-------------|---------------------|
+| `get_patient` | Get patient demographics with consent checking | Restricted |
+| `search_patients` | Search patients by name, MRN, DOB | Confidential |
+| `get_patient_conditions` | Get diagnoses and medical conditions | Restricted |
+| `get_patient_allergies` | Get allergy information (critical for safety) | Restricted |
+| `get_patient_medications` | Get current and historical medications | Restricted |
+| `get_patient_vitals` | Get vital signs history | Confidential |
+| `get_care_team` | Get patient's care team members | Internal |
+
+#### Features
+
+- **Break-Glass Access**: Emergency access with enhanced auditing
+- **Data Minimization**: Request specific fields only
+- **Consent Verification**: Checks patient consent before access
+- **Structured Audit Trails**: Every access logged with PHI tracking
+
+#### Example Usage
+
+```typescript
+// Normal access with purpose
+await client.callTool('get_patient', {
+  patientId: 'P12345',
+  purpose: 'treatment',
+  requestedFields: ['name', 'allergies', 'medications']
+});
+
+// Emergency break-glass access
+await client.callTool('get_patient', {
+  patientId: 'P12345',
+  purpose: 'emergency',
+  breakGlass: true,
+  breakGlassReason: 'Patient unconscious, need allergy info'
+});
+```
+
+#### Running the Server
+
+```bash
+node dist/mcp-servers/healthcare/patient-records-server.js
+```
+
+---
+
+### Pharmacy MCP Server
+
+**File Location:** `src/mcp-servers/healthcare/pharmacy-server.ts`
+
+Provides medication management capabilities including drug interaction checking.
+
+#### Tools
+
+| Tool | Description | Purpose |
+|------|-------------|---------|
+| `check_drug_interactions` | Check drug-drug interactions | Medication Safety |
+| `get_medication_info` | Get drug information and dosing | Drug Information |
+| `check_dosage` | Verify dosage is within range | Dosage Validation |
+| `get_formulary_status` | Check insurance coverage/tier | Formulary Check |
+| `get_alternatives` | Get therapeutic alternatives | Alternative Therapy |
+| `verify_prescription` | Verify prescription validity | Prescription Verification |
+
+#### Drug Interaction Severity Levels
+
+- **Contraindicated**: Do not use together
+- **Major**: High risk, requires monitoring
+- **Moderate**: Clinically significant, consider alternatives
+- **Minor**: Minimal clinical significance
+
+#### Example Usage
+
+```typescript
+// Check if Warfarin can be added to current medications
+const result = await client.callTool('check_drug_interactions', {
+  newDrug: 'Warfarin',
+  currentMedications: ['Aspirin', 'Lisinopril', 'Metformin']
+});
+
+// Response includes severity and recommendations
+// {
+//   hasSevereInteractions: true,
+//   safeToAdd: false,
+//   interactions: [{
+//     drug1: 'Warfarin',
+//     drug2: 'Aspirin',
+//     severity: 'major',
+//     recommendation: 'Monitor closely for bleeding'
+//   }]
+// }
+```
+
+#### Running the Server
+
+```bash
+node dist/mcp-servers/healthcare/pharmacy-server.js
+```
+
+---
+
+### Clinical Workflow MCP Server
+
+**File Location:** `src/mcp-servers/healthcare/clinical-workflow-server.ts`
+
+Provides care coordination and scheduling capabilities.
+
+#### Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_appointments` | Get patient appointments |
+| `schedule_appointment` | Schedule new appointment |
+| `get_provider_availability` | Check provider schedule |
+| `create_referral` | Create specialist referral |
+| `get_care_plan` | Get patient care plan |
+| `update_care_plan` | Update care plan goals/activities |
+| `send_clinical_message` | Send secure clinical message |
+
+#### Example Usage
+
+```typescript
+// Schedule an appointment
+await client.callTool('schedule_appointment', {
+  patientId: 'P12345',
+  providerId: 'DR001',
+  startTime: '2025-12-01T09:00:00Z',
+  duration: 30,
+  appointmentType: 'follow-up',
+  reason: 'Diabetes management'
+});
+
+// Create a referral
+await client.callTool('create_referral', {
+  patientId: 'P12345',
+  requesterId: 'DR001',
+  recipientId: 'DR003',
+  priority: 'routine',
+  reason: 'Hypertension - BP not controlled',
+  clinicalQuestion: 'Please evaluate for resistant hypertension'
+});
+```
+
+#### Running the Server
+
+```bash
+node dist/mcp-servers/healthcare/clinical-workflow-server.js
+```
+
+---
+
+### Healthcare Response Structure
+
+All healthcare servers return enhanced structured responses with audit metadata:
+
+```typescript
+{
+  content: [{ type: 'text', text: 'Human-readable response' }],
+  structuredContent: {
+    success: true,
+    data: { /* Business data */ },
+    timestamp: '2025-11-23T10:30:00Z',
+
+    // Audit metadata (always present)
+    _audit: {
+      eventId: 'evt_abc123',
+      timestamp: '2025-11-23T10:30:00Z',
+      accessedFields: ['name', 'dob', 'allergies'],
+      dataClassification: 'restricted',
+      piiAccessed: true,
+      piiFields: ['name', 'dob'],
+      purpose: 'treatment',
+      complianceContext: {
+        hipaaCategory: 'treatment',
+        minimumNecessary: true,
+        breakGlass: false
+      }
+    },
+
+    // Consent metadata (when applicable)
+    _consent: {
+      status: 'granted',
+      purposes: ['treatment', 'care-coordination'],
+      restrictions: ['no-marketing']
+    },
+
+    // Data minimization (when field filtering applied)
+    _dataMinimization: {
+      requestedFields: ['name', 'allergies'],
+      returnedFields: ['name', 'allergies'],
+      redactedFields: ['ssn', 'address', 'insurance']
+    }
+  }
+}
+```
 
 ---
 
@@ -681,6 +896,6 @@ export GITHUB_TOKEN=ghp_xxx
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** November 20, 2025
+**Document Version:** 2.0
+**Last Updated:** November 23, 2025
 **Author:** MCP Reference Implementation Team

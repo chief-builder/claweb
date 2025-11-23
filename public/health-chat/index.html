@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Healthcare Assistant - Clinical Chat</title>
+  <style>
+    /* Earthy Tones Palette
+     * Soft: #D7CCC8
+     * Light: #BCAAA4
+     * Medium: #A1887F
+     * Dark: #8D6E63
+     * Rich: #795548
+     */
+
+    :root {
+      --earthy-soft: #D7CCC8;
+      --earthy-light: #BCAAA4;
+      --earthy-medium: #A1887F;
+      --earthy-dark: #8D6E63;
+      --earthy-rich: #795548;
+      --earthy-deep: #5D4037;
+      --earthy-text: #3E2723;
+      --white: #FFFFFF;
+      --success: #558B2F;
+      --warning: #F57F17;
+      --danger: #C62828;
+      --info: #0277BD;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, var(--earthy-soft) 0%, var(--earthy-light) 50%, var(--earthy-medium) 100%);
+      min-height: 100vh;
+      color: var(--earthy-text);
+    }
+
+    .app-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 20px;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: linear-gradient(180deg, var(--earthy-rich) 0%, var(--earthy-deep) 100%);
+      border-radius: 16px;
+      padding: 20px;
+      color: var(--white);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .sidebar h1 {
+      font-size: 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--earthy-medium);
+    }
+
+    .hipaa-banner {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--earthy-medium);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hipaa-banner.warning {
+      background: rgba(245, 127, 23, 0.2);
+      border-color: var(--warning);
+    }
+
+    /* Context Panel */
+    .context-panel {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 15px;
+    }
+
+    .context-panel h3 {
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      opacity: 0.9;
+    }
+
+    .context-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.85rem;
+    }
+
+    .context-item:last-child {
+      border-bottom: none;
+    }
+
+    .context-label {
+      opacity: 0.7;
+    }
+
+    .context-value {
+      font-weight: 500;
+    }
+
+    .context-value.active {
+      color: #81C784;
+    }
+
+    .context-value.inactive {
+      color: #FFAB91;
+    }
+
+    /* Purpose Selector */
+    .purpose-selector {
+      margin-top: auto;
+    }
+
+    .purpose-selector label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      opacity: 0.9;
+    }
+
+    .purpose-selector select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--earthy-medium);
+      background: var(--earthy-deep);
+      color: var(--white);
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .purpose-selector select:focus {
+      outline: none;
+      border-color: var(--earthy-light);
+    }
+
+    /* Break Glass Button */
+    .break-glass-btn {
+      background: var(--danger);
+      color: var(--white);
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+
+    .break-glass-btn:hover {
+      background: #B71C1C;
+    }
+
+    .break-glass-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Main Chat Area */
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .chat-header {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #888;
+    }
+
+    .status-dot.connected {
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.connecting {
+      background: var(--warning);
+      animation: blink 1s infinite;
+    }
+
+    .status-dot.error {
+      background: var(--danger);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .header-btn {
+      background: var(--earthy-soft);
+      border: 1px solid var(--earthy-light);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--earthy-text);
+    }
+
+    .header-btn:hover {
+      background: var(--earthy-light);
+    }
+
+    /* Chat Container */
+    .chat-container {
+      flex: 1;
+      background: var(--white);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: calc(100vh - 340px);
+    }
+
+    .message {
+      max-width: 85%;
+      padding: 14px 18px;
+      border-radius: 16px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, var(--earthy-dark) 0%, var(--earthy-rich) 100%);
+      color: var(--white);
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: var(--earthy-soft);
+      color: var(--earthy-text);
+      border-bottom-left-radius: 4px;
+    }
+
+    .message.system {
+      align-self: center;
+      background: #FFF8E1;
+      color: #F57F17;
+      font-size: 0.85rem;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    .message.alert {
+      background: #FFEBEE;
+      border-left: 4px solid var(--danger);
+      color: var(--danger);
+    }
+
+    /* Typing Indicator */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 18px;
+      background: var(--earthy-soft);
+      border-radius: 16px;
+      align-self: flex-start;
+      width: fit-content;
+    }
+
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--earthy-dark);
+      border-radius: 50%;
+      animation: typing 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Input Area */
+    .input-container {
+      padding: 20px;
+      background: #FAFAFA;
+      border-top: 1px solid var(--earthy-soft);
+    }
+
+    .patient-input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .patient-input {
+      flex: 1;
+      padding: 10px 15px;
+      border: 1px solid var(--earthy-light);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    .patient-input:focus {
+      outline: none;
+      border-color: var(--earthy-dark);
+    }
+
+    .set-patient-btn {
+      background: var(--earthy-dark);
+      color: var(--white);
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+    .set-patient-btn:hover {
+      background: var(--earthy-rich);
+    }
+
+    .set-patient-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .message-input-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .message-input {
+      flex: 1;
+      padding: 14px 18px;
+      border: 2px solid var(--earthy-light);
+      border-radius: 12px;
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+
+    .message-input:focus {
+      outline: none;
+      border-color: var(--earthy-dark);
+    }
+
+    .message-input:disabled {
+      background: #f5f5f5;
+    }
+
+    .send-btn {
+      background: linear-gradient(135deg, var(--earthy-dark) 0%, var(--earthy-rich) 100%);
+      color: var(--white);
+      border: none;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .send-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(121, 85, 72, 0.3);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Suggested Queries */
+    .suggested-queries {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .suggested-query {
+      background: var(--white);
+      border: 1px solid var(--earthy-light);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--earthy-dark);
+    }
+
+    .suggested-query:hover {
+      background: var(--earthy-soft);
+      border-color: var(--earthy-dark);
+    }
+
+    /* Audit Log Panel */
+    .audit-panel {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 15px 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .audit-panel h3 {
+      font-size: 0.9rem;
+      color: var(--earthy-dark);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .audit-entries {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 0.8rem;
+      font-family: monospace;
+    }
+
+    .audit-entry {
+      padding: 6px 0;
+      border-bottom: 1px solid var(--earthy-soft);
+      color: var(--earthy-medium);
+    }
+
+    .audit-entry:last-child {
+      border-bottom: none;
+    }
+
+    /* Break Glass Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 30px;
+      max-width: 450px;
+      width: 90%;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal h2 {
+      color: var(--danger);
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal p {
+      color: var(--earthy-text);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .modal-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--earthy-light);
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 0.95rem;
+    }
+
+    .modal-input:focus {
+      outline: none;
+      border-color: var(--earthy-dark);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .modal-btn {
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .modal-btn.cancel {
+      background: var(--earthy-soft);
+      border: 1px solid var(--earthy-light);
+      color: var(--earthy-text);
+    }
+
+    .modal-btn.confirm {
+      background: var(--danger);
+      border: none;
+      color: var(--white);
+    }
+
+    .modal-btn.confirm:hover {
+      background: #B71C1C;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .app-container {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        order: 2;
+      }
+
+      .main-content {
+        order: 1;
+      }
+
+      .messages-container {
+        max-height: 400px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <h1>
+        <span>&#x1F3E5;</span>
+        Healthcare Assistant
+      </h1>
+
+      <div class="hipaa-banner" id="hipaa-banner">
+        <span>&#x1F512;</span>
+        <span>HIPAA Compliant Session</span>
+      </div>
+
+      <div class="context-panel">
+        <h3>Session Context</h3>
+        <div class="context-item">
+          <span class="context-label">Session ID</span>
+          <span class="context-value" id="session-id-display">Not connected</span>
+        </div>
+        <div class="context-item">
+          <span class="context-label">Patient</span>
+          <span class="context-value inactive" id="patient-display">None selected</span>
+        </div>
+        <div class="context-item">
+          <span class="context-label">Purpose</span>
+          <span class="context-value inactive" id="purpose-display">Not set</span>
+        </div>
+        <div class="context-item">
+          <span class="context-label">Break-Glass</span>
+          <span class="context-value inactive" id="break-glass-display">Inactive</span>
+        </div>
+      </div>
+
+      <div class="purpose-selector">
+        <label for="purpose-select">Access Purpose (Required)</label>
+        <select id="purpose-select" disabled>
+          <option value="">Select purpose...</option>
+          <option value="treatment">Treatment</option>
+          <option value="payment">Payment</option>
+          <option value="operations">Operations</option>
+          <option value="research">Research</option>
+          <option value="public_health">Public Health</option>
+          <option value="legal">Legal</option>
+        </select>
+      </div>
+
+      <button class="break-glass-btn" id="break-glass-btn" disabled>
+        <span>&#x1F6A8;</span>
+        Emergency Access (Break-Glass)
+      </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="chat-header">
+        <div class="status-indicator">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Connecting...</span>
+        </div>
+        <div class="header-actions">
+          <button class="header-btn" id="audit-btn">View Audit Log</button>
+          <button class="header-btn" id="reset-btn" disabled>Reset</button>
+        </div>
+      </header>
+
+      <div class="chat-container">
+        <div class="messages-container" id="messages">
+          <div class="message system">
+            Welcome to the Healthcare Assistant. Please select an access purpose and set a patient context to begin.
+          </div>
+        </div>
+
+        <div class="input-container">
+          <div class="patient-input-group">
+            <input
+              type="text"
+              class="patient-input"
+              id="patient-input"
+              placeholder="Enter Patient ID (e.g., P12345)"
+              disabled
+            />
+            <button class="set-patient-btn" id="set-patient-btn" disabled>Set Patient</button>
+          </div>
+
+          <div class="message-input-group">
+            <input
+              type="text"
+              class="message-input"
+              id="message-input"
+              placeholder="Type your clinical query..."
+              disabled
+            />
+            <button class="send-btn" id="send-btn" disabled>Send</button>
+          </div>
+
+          <div class="suggested-queries" id="suggested-queries">
+            <button class="suggested-query" data-query="What are the patient's current conditions?">Current conditions</button>
+            <button class="suggested-query" data-query="Show me the patient's medication list">Medications</button>
+            <button class="suggested-query" data-query="Check for drug interactions with Warfarin">Drug interactions</button>
+            <button class="suggested-query" data-query="What appointments are scheduled?">Appointments</button>
+            <button class="suggested-query" data-query="Show the patient's allergies">Allergies</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="audit-panel" id="audit-panel" style="display: none;">
+        <h3>
+          <span>&#x1F4CB;</span>
+          Audit Trail
+        </h3>
+        <div class="audit-entries" id="audit-entries">
+          No audit entries yet.
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Break Glass Modal -->
+  <div class="modal-overlay" id="break-glass-modal">
+    <div class="modal">
+      <h2>
+        <span>&#x26A0;&#xFE0F;</span>
+        Emergency Access Request
+      </h2>
+      <p>
+        Break-glass access is for genuine medical emergencies only.
+        All access will be logged and reviewed by compliance officers.
+      </p>
+      <input
+        type="text"
+        class="modal-input"
+        id="break-glass-reason"
+        placeholder="Reason for emergency access"
+      />
+      <input
+        type="text"
+        class="modal-input"
+        id="break-glass-provider"
+        placeholder="Authorizing provider name"
+      />
+      <div class="modal-actions">
+        <button class="modal-btn cancel" id="break-glass-cancel">Cancel</button>
+        <button class="modal-btn confirm" id="break-glass-confirm">Activate Emergency Access</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Application State
+    const state = {
+      sessionId: null,
+      csrfToken: null,
+      patientId: null,
+      purpose: null,
+      breakGlassActive: false,
+      isConnected: false,
+      isLoading: false,
+    };
+
+    // DOM Elements
+    const elements = {
+      statusDot: document.getElementById('status-dot'),
+      statusText: document.getElementById('status-text'),
+      sessionIdDisplay: document.getElementById('session-id-display'),
+      patientDisplay: document.getElementById('patient-display'),
+      purposeDisplay: document.getElementById('purpose-display'),
+      breakGlassDisplay: document.getElementById('break-glass-display'),
+      purposeSelect: document.getElementById('purpose-select'),
+      patientInput: document.getElementById('patient-input'),
+      setPatientBtn: document.getElementById('set-patient-btn'),
+      messageInput: document.getElementById('message-input'),
+      sendBtn: document.getElementById('send-btn'),
+      resetBtn: document.getElementById('reset-btn'),
+      messages: document.getElementById('messages'),
+      breakGlassBtn: document.getElementById('break-glass-btn'),
+      breakGlassModal: document.getElementById('break-glass-modal'),
+      breakGlassReason: document.getElementById('break-glass-reason'),
+      breakGlassProvider: document.getElementById('break-glass-provider'),
+      breakGlassCancel: document.getElementById('break-glass-cancel'),
+      breakGlassConfirm: document.getElementById('break-glass-confirm'),
+      auditBtn: document.getElementById('audit-btn'),
+      auditPanel: document.getElementById('audit-panel'),
+      auditEntries: document.getElementById('audit-entries'),
+      suggestedQueries: document.querySelectorAll('.suggested-query'),
+      hipaaBanner: document.getElementById('hipaa-banner'),
+    };
+
+    // API Base URL
+    const API_BASE = '/api';
+
+    // Initialize the application
+    async function init() {
+      try {
+        updateStatus('connecting');
+        const response = await fetch(`${API_BASE}/sessions`, { method: 'POST' });
+
+        if (!response.ok) {
+          throw new Error('Failed to create session');
+        }
+
+        const data = await response.json();
+        state.sessionId = data.sessionId;
+        state.csrfToken = data.csrfToken;
+        state.isConnected = true;
+
+        updateStatus('connected');
+        elements.sessionIdDisplay.textContent = data.sessionId.substring(0, 20) + '...';
+        elements.purposeSelect.disabled = false;
+        elements.breakGlassBtn.disabled = false;
+        elements.resetBtn.disabled = false;
+
+        addMessage('system', `Session created. Timeout: ${data.timeoutMinutes} minutes of inactivity.`);
+      } catch (error) {
+        console.error('Init error:', error);
+        updateStatus('error');
+        addMessage('alert', 'Failed to connect to healthcare services. Please refresh the page.');
+      }
+    }
+
+    // Update connection status
+    function updateStatus(status) {
+      elements.statusDot.className = 'status-dot ' + status;
+      const statusTexts = {
+        connecting: 'Connecting...',
+        connected: 'Connected',
+        error: 'Connection Error',
+      };
+      elements.statusText.textContent = statusTexts[status] || status;
+    }
+
+    // Add a message to the chat
+    function addMessage(type, content) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message ' + type;
+      messageDiv.textContent = content;
+      elements.messages.appendChild(messageDiv);
+      elements.messages.scrollTop = elements.messages.scrollHeight;
+    }
+
+    // Show typing indicator
+    function showTyping() {
+      const typingDiv = document.createElement('div');
+      typingDiv.className = 'typing-indicator';
+      typingDiv.id = 'typing-indicator';
+      typingDiv.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+      elements.messages.appendChild(typingDiv);
+      elements.messages.scrollTop = elements.messages.scrollHeight;
+    }
+
+    // Hide typing indicator
+    function hideTyping() {
+      const typing = document.getElementById('typing-indicator');
+      if (typing) typing.remove();
+    }
+
+    // Set access purpose
+    async function setPurpose(purpose) {
+      try {
+        const response = await fetch(`${API_BASE}/sessions/${state.sessionId}/purpose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ purpose }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to set purpose');
+        }
+
+        state.purpose = purpose;
+        elements.purposeDisplay.textContent = purpose;
+        elements.purposeDisplay.className = 'context-value active';
+        elements.patientInput.disabled = false;
+        elements.setPatientBtn.disabled = false;
+
+        addMessage('system', `Access purpose set to: ${purpose}`);
+      } catch (error) {
+        console.error('Set purpose error:', error);
+        addMessage('alert', error.message);
+      }
+    }
+
+    // Set patient context
+    async function setPatient() {
+      const patientId = elements.patientInput.value.trim();
+      if (!patientId) return;
+
+      try {
+        const response = await fetch(`${API_BASE}/sessions/${state.sessionId}/patient`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patientId }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to set patient');
+        }
+
+        state.patientId = patientId;
+        elements.patientDisplay.textContent = patientId;
+        elements.patientDisplay.className = 'context-value active';
+        elements.messageInput.disabled = false;
+        elements.sendBtn.disabled = false;
+
+        addMessage('system', `Patient context set: ${patientId}. You can now make clinical queries.`);
+      } catch (error) {
+        console.error('Set patient error:', error);
+        addMessage('alert', error.message);
+      }
+    }
+
+    // Send chat message
+    async function sendMessage() {
+      const message = elements.messageInput.value.trim();
+      if (!message || state.isLoading) return;
+
+      state.isLoading = true;
+      elements.sendBtn.disabled = true;
+      elements.messageInput.disabled = true;
+
+      addMessage('user', message);
+      elements.messageInput.value = '';
+      showTyping();
+
+      try {
+        const response = await fetch(`${API_BASE}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: state.sessionId,
+            message: message,
+            csrfToken: state.csrfToken,
+          }),
+        });
+
+        hideTyping();
+
+        if (!response.ok) {
+          const error = await response.json();
+          if (error.requiresPurpose) {
+            addMessage('alert', 'Please select an access purpose before making patient queries.');
+          } else {
+            throw new Error(error.message || 'Failed to send message');
+          }
+          return;
+        }
+
+        const data = await response.json();
+        addMessage('assistant', data.response);
+
+      } catch (error) {
+        hideTyping();
+        console.error('Send message error:', error);
+        addMessage('alert', error.message);
+      } finally {
+        state.isLoading = false;
+        elements.sendBtn.disabled = false;
+        elements.messageInput.disabled = false;
+        elements.messageInput.focus();
+      }
+    }
+
+    // Activate break-glass access
+    async function activateBreakGlass() {
+      const reason = elements.breakGlassReason.value.trim();
+      const provider = elements.breakGlassProvider.value.trim();
+
+      if (!reason || !provider) {
+        alert('Please provide both reason and authorizing provider.');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/sessions/${state.sessionId}/break-glass`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason, authorizingProvider: provider }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to activate break-glass');
+        }
+
+        state.breakGlassActive = true;
+        state.purpose = 'emergency';
+        elements.breakGlassDisplay.textContent = 'ACTIVE';
+        elements.breakGlassDisplay.className = 'context-value';
+        elements.breakGlassDisplay.style.color = '#C62828';
+        elements.purposeDisplay.textContent = 'emergency';
+        elements.purposeDisplay.className = 'context-value active';
+        elements.hipaaBanner.classList.add('warning');
+        elements.hipaaBanner.innerHTML = '<span>&#x26A0;&#xFE0F;</span><span>EMERGENCY ACCESS ACTIVE</span>';
+
+        // Enable all inputs
+        elements.patientInput.disabled = false;
+        elements.setPatientBtn.disabled = false;
+        elements.messageInput.disabled = false;
+        elements.sendBtn.disabled = false;
+
+        closeBreakGlassModal();
+        addMessage('alert', 'EMERGENCY ACCESS ACTIVATED. All actions are being logged for compliance review.');
+
+      } catch (error) {
+        console.error('Break-glass error:', error);
+        addMessage('alert', 'Failed to activate emergency access.');
+      }
+    }
+
+    // Reset conversation
+    async function resetConversation() {
+      try {
+        await fetch(`${API_BASE}/sessions/${state.sessionId}/reset`, { method: 'POST' });
+
+        // Clear state
+        state.patientId = null;
+        state.breakGlassActive = false;
+
+        // Reset UI
+        elements.patientDisplay.textContent = 'None selected';
+        elements.patientDisplay.className = 'context-value inactive';
+        elements.breakGlassDisplay.textContent = 'Inactive';
+        elements.breakGlassDisplay.className = 'context-value inactive';
+        elements.patientInput.value = '';
+        elements.messageInput.disabled = true;
+        elements.sendBtn.disabled = true;
+        elements.hipaaBanner.classList.remove('warning');
+        elements.hipaaBanner.innerHTML = '<span>&#x1F512;</span><span>HIPAA Compliant Session</span>';
+
+        // Clear messages
+        elements.messages.innerHTML = '';
+        addMessage('system', 'Conversation reset. Patient context cleared. Please set a new patient context to continue.');
+
+      } catch (error) {
+        console.error('Reset error:', error);
+        addMessage('alert', 'Failed to reset conversation.');
+      }
+    }
+
+    // Fetch audit log
+    async function fetchAuditLog() {
+      try {
+        const response = await fetch(`${API_BASE}/sessions/${state.sessionId}/audit`);
+        const data = await response.json();
+
+        if (data.entries.length === 0) {
+          elements.auditEntries.textContent = 'No audit entries yet.';
+        } else {
+          elements.auditEntries.innerHTML = data.entries.map(entry =>
+            `<div class="audit-entry">${entry.timestamp} | ${entry.action} | ${entry.outcome}</div>`
+          ).join('');
+        }
+      } catch (error) {
+        console.error('Audit fetch error:', error);
+      }
+    }
+
+    // Toggle audit panel
+    function toggleAuditPanel() {
+      const isVisible = elements.auditPanel.style.display !== 'none';
+      elements.auditPanel.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible) fetchAuditLog();
+    }
+
+    // Open break-glass modal
+    function openBreakGlassModal() {
+      elements.breakGlassModal.classList.add('active');
+    }
+
+    // Close break-glass modal
+    function closeBreakGlassModal() {
+      elements.breakGlassModal.classList.remove('active');
+      elements.breakGlassReason.value = '';
+      elements.breakGlassProvider.value = '';
+    }
+
+    // Event Listeners
+    elements.purposeSelect.addEventListener('change', (e) => {
+      if (e.target.value) setPurpose(e.target.value);
+    });
+
+    elements.setPatientBtn.addEventListener('click', setPatient);
+    elements.patientInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') setPatient();
+    });
+
+    elements.sendBtn.addEventListener('click', sendMessage);
+    elements.messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    elements.resetBtn.addEventListener('click', resetConversation);
+    elements.auditBtn.addEventListener('click', toggleAuditPanel);
+
+    elements.breakGlassBtn.addEventListener('click', openBreakGlassModal);
+    elements.breakGlassCancel.addEventListener('click', closeBreakGlassModal);
+    elements.breakGlassConfirm.addEventListener('click', activateBreakGlass);
+
+    elements.suggestedQueries.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!elements.messageInput.disabled) {
+          elements.messageInput.value = btn.dataset.query;
+          elements.messageInput.focus();
+        }
+      });
+    });
+
+    // Initialize on load
+    init();
+  </script>
+</body>
+</html>
