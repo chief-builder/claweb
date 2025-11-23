@@ -79,6 +79,7 @@ Deterministic tests for individual components.
 | Echo | `tools/echo.test.ts` | 8 | Message echoing and transformations |
 | Current Time | `tools/current-time.test.ts` | 8 | Time formatting, timezones |
 | PKCE Auth | `auth/pkce.test.ts` | 15 | OAuth PKCE flow, validation |
+| Healthcare Types | `healthcare/types.test.ts` | 29 | Audit metadata, PII detection, redaction |
 
 ### 2. Agent Tests (`tests/agent/`)
 
@@ -88,6 +89,35 @@ Tests for agent behavior and tool selection.
 |-------|------|-------|------|
 | Simple Agent | `simple-agent.test.ts` | 25 | Deterministic (pattern matching) |
 | Intelligent Agent | `intelligent-agent.test.ts` | 16 | Non-deterministic (LLM-powered) |
+| Healthcare Agent | `healthcare-intelligent-agent.test.ts` | 23 | Non-deterministic (healthcare domain) |
+
+#### Healthcare Intelligent Agent Tests
+
+The healthcare agent tests demonstrate comprehensive testing patterns for domain-specific LLM agents:
+
+| Category | Tests | Description |
+|----------|-------|-------------|
+| Initialization | 4 | Server connectivity and tool discovery |
+| Patient Record Queries | 3 | Patient lookup, conditions, data minimization |
+| Drug Interaction Queries | 3 | Interactions, dosage, medication info |
+| Clinical Workflow Queries | 2 | Appointments, care plans |
+| Multi-Server Queries | 1 | Cross-server tool chaining |
+| LLM-as-Judge Evaluation | 2 | Semantic quality assessment |
+| Acceptance Band Testing | 1 | Flake detection (70% threshold) |
+| Mock LLM (Deterministic) | 5 | Pattern-based tool routing |
+| Error Handling | 1 | Invalid input graceful handling |
+
+**Running Healthcare Agent Tests:**
+```bash
+# Deterministic tests only (no API key needed)
+npm run test -- tests/agent/healthcare-intelligent-agent.test.ts
+
+# Full suite with live LLM
+ANTHROPIC_API_KEY=your-key npm run test -- tests/agent/healthcare-intelligent-agent.test.ts
+
+# With acceptance band tests
+ANTHROPIC_API_KEY=your-key LIVE_LLM=true npm run test -- tests/agent/healthcare-intelligent-agent.test.ts
+```
 
 ### 3. MCP Compliance Tests (`tests/mcp-compliance/`)
 
@@ -104,7 +134,65 @@ Tests for MCP protocol adherence.
 
 - `tests/integration.test.ts` - End-to-end server/client communication
 
-### 5. Manual Tests (`docs/manual-tests/`)
+### 5. Healthcare MCP Server Tests (`tests/healthcare/`)
+
+Comprehensive tests for healthcare domain MCP servers demonstrating MCP 2025-06-18 compliance:
+
+| Server | File | Tests | Description |
+|--------|------|-------|-------------|
+| Patient Records | `patient-records.test.ts` | 26 | Patient lookup, conditions, break-glass, data minimization |
+| Pharmacy | `pharmacy.test.ts` | 29 | Drug interactions, dosage, formulary, prescriptions |
+| Clinical Workflow | `clinical-workflow.test.ts` | 39 | Appointments, referrals, care plans, messaging |
+
+**Test Fixtures:** `tests/healthcare/fixtures.ts` provides reusable test data:
+- Patient fixtures (valid, invalid, break-glass scenarios)
+- Drug interaction fixtures (major, moderate, minor severity)
+- Dosage fixtures (appropriate, inappropriate ranges)
+- Appointment and referral fixtures
+
+**Key Test Patterns:**
+```typescript
+// MCP 2025-06-18 compliance - tool definitions
+it('should have title field for all tools', async () => {
+  const tools = await client.listTools();
+  for (const tool of tools) {
+    expect(tool).toHaveProperty('title');
+    expect(tool).toHaveProperty('outputSchema');
+  }
+});
+
+// Audit metadata validation
+it('should include audit metadata', async () => {
+  const result = await client.callTool('get_patient', { patientId: 'P12345' });
+  expect(result.structuredContent._audit).toHaveProperty('eventId');
+  expect(result.structuredContent._audit).toHaveProperty('timestamp');
+  expect(result.structuredContent._audit).toHaveProperty('dataClassification');
+});
+
+// Break-glass access
+it('should allow break-glass access with review deadline', async () => {
+  const result = await client.callTool('get_patient', {
+    patientId: 'P12345',
+    breakGlass: true,
+    breakGlassReason: 'Emergency treatment',
+  });
+  expect(result.structuredContent._audit.breakGlass).toBe(true);
+  expect(result.structuredContent._audit.breakGlassReason).toBeDefined();
+});
+```
+
+**Running Healthcare Server Tests:**
+```bash
+# Run all healthcare integration tests
+npm run test:integration -- tests/healthcare/
+
+# Run specific server tests
+npm run test -- tests/healthcare/patient-records.test.ts
+npm run test -- tests/healthcare/pharmacy.test.ts
+npm run test -- tests/healthcare/clinical-workflow.test.ts
+```
+
+### 6. Manual Tests (`docs/manual-tests/`)
 
 Human-driven testing for quality assurance.
 
