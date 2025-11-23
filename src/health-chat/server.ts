@@ -162,6 +162,53 @@ async function registerOAuthClient(): Promise<boolean> {
 
 const sessions = new Map<string, SessionData>();
 
+/**
+ * Get authenticated user from request (via OAuth session cookie)
+ * Returns user identity for audit logging
+ */
+function getAuthenticatedUserFromRequest(req: Request): AuthenticatedUser | null {
+  const sessionId = req.cookies?.health_chat_session;
+  if (!sessionId) return null;
+  return getUserFromSession(sessionId);
+}
+
+/**
+ * Build audit log context with user identity
+ */
+function buildAuditContext(
+  req: Request,
+  baseContext: {
+    sessionId: string;
+    action: string;
+    resource: string;
+    outcome: 'success' | 'failure' | 'denied';
+    resourceId?: string;
+    purpose?: string;
+    details?: Record<string, unknown>;
+  }
+) {
+  const authUser = getAuthenticatedUserFromRequest(req);
+
+  return {
+    ...baseContext,
+    userId: authUser?.userId,
+    ipAddress: req.ip || 'unknown',
+    userAgent: req.headers['user-agent'] || 'unknown',
+    details: {
+      ...baseContext.details,
+      // Include user identity in audit details for HIPAA compliance
+      ...(authUser && {
+        authenticatedUser: {
+          userId: authUser.userId,
+          email: authUser.email,
+          name: authUser.name,
+          authMethod: authUser.authMethod,
+        },
+      }),
+    },
+  };
+}
+
 // Middleware
 app.use(cors({
   origin: process.env.CORS_ORIGIN || true,
@@ -614,14 +661,13 @@ app.post('/api/sessions', async (req: Request, res: Response) => {
     // Generate CSRF token for this session
     const csrfToken = generateCSRFToken(sessionId);
 
-    logAudit({
+    // Log session creation with user identity if authenticated
+    logAudit(buildAuditContext(req, {
       sessionId,
       action: 'SESSION_CREATED',
       resource: 'session',
-      ipAddress: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
       outcome: 'success',
-    });
+    }));
 
     res.json({
       sessionId,
@@ -670,15 +716,13 @@ app.post('/api/sessions/:sessionId/purpose', (req: Request, res: Response) => {
 
   session.accessPurpose = purpose;
 
-  logAudit({
+  logAudit(buildAuditContext(req, {
     sessionId,
     action: 'ACCESS_PURPOSE_SET',
     resource: 'session',
     purpose,
-    ipAddress: req.ip || 'unknown',
-    userAgent: req.headers['user-agent'] || 'unknown',
     outcome: 'success',
-  });
+  }));
 
   res.json({
     success: true,
@@ -723,16 +767,14 @@ app.post('/api/sessions/:sessionId/patient', async (req: Request, res: Response)
     loadedAt: new Date().toISOString(),
   };
 
-  logAudit({
+  logAudit(buildAuditContext(req, {
     sessionId,
     action: 'PATIENT_CONTEXT_SET',
     resource: 'patient',
     resourceId: sanitizedPatientId,
     purpose: session.accessPurpose,
-    ipAddress: req.ip || 'unknown',
-    userAgent: req.headers['user-agent'] || 'unknown',
     outcome: 'success',
-  });
+  }));
 
   res.json({
     success: true,
@@ -762,19 +804,17 @@ app.post('/api/sessions/:sessionId/break-glass', (req: Request, res: Response) =
   session.breakGlassActive = true;
   session.accessPurpose = 'emergency';
 
-  logAudit({
+  logAudit(buildAuditContext(req, {
     sessionId,
     action: 'BREAK_GLASS_ACTIVATED',
     resource: 'access_control',
     purpose: 'emergency',
-    ipAddress: req.ip || 'unknown',
-    userAgent: req.headers['user-agent'] || 'unknown',
     outcome: 'success',
     details: {
       reason: sanitizeInput(reason),
       authorizingProvider: sanitizeInput(authorizingProvider),
     },
-  });
+  }));
 
   res.json({
     success: true,
@@ -800,14 +840,12 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
     // Validate CSRF token
     if (!csrfToken || !validateCSRFToken(sessionId, csrfToken)) {
-      logAudit({
+      logAudit(buildAuditContext(req, {
         sessionId,
         action: 'CSRF_VALIDATION_FAILED',
         resource: 'chat',
-        ipAddress: req.ip || 'unknown',
-        userAgent: req.headers['user-agent'] || 'unknown',
         outcome: 'denied',
-      });
+      }));
 
       return res.status(403).json({
         error: 'Invalid security token',
@@ -833,40 +871,40 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     // Sanitize the message
     const sanitizedMessage = sanitizeInput(message);
 
-    // Log the query
-    logAudit({
+    // Log the query with user identity for HIPAA compliance
+    logAudit(buildAuditContext(req, {
       sessionId,
       action: 'CHAT_QUERY',
       resource: 'chat',
+      resourceId: session.patientContext?.patientId,
       purpose: session.accessPurpose,
-      ipAddress: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
       outcome: 'success',
       details: {
         queryLength: sanitizedMessage.length,
         hasPatientContext: !!session.patientContext,
+        patientId: session.patientContext?.patientId,
         breakGlassActive: session.breakGlassActive,
       },
-    });
+    }));
 
     session.auditCount++;
 
     // Process the query
     const response = await session.agent.processQuery(message);
 
-    // Log successful response
-    logAudit({
+    // Log successful response with user identity for HIPAA compliance
+    logAudit(buildAuditContext(req, {
       sessionId,
       action: 'CHAT_RESPONSE',
       resource: 'chat',
+      resourceId: session.patientContext?.patientId,
       purpose: session.accessPurpose,
-      ipAddress: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
       outcome: 'success',
       details: {
         responseLength: response.length,
+        patientId: session.patientContext?.patientId,
       },
-    });
+    }));
 
     res.json({
       response,
@@ -877,15 +915,13 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error processing chat:', error);
 
-    logAudit({
+    logAudit(buildAuditContext(req, {
       sessionId: req.body.sessionId || 'unknown',
       action: 'CHAT_ERROR',
       resource: 'chat',
-      ipAddress: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
       outcome: 'failure',
       details: { error: error instanceof Error ? error.message : 'Unknown error' },
-    });
+    }));
 
     res.status(500).json({
       error: 'Failed to process message',
@@ -931,14 +967,12 @@ app.post('/api/sessions/:sessionId/reset', (req: Request, res: Response) => {
   session.patientContext = undefined;
   session.breakGlassActive = false;
 
-  logAudit({
+  logAudit(buildAuditContext(req, {
     sessionId,
     action: 'CONVERSATION_RESET',
     resource: 'session',
-    ipAddress: req.ip || 'unknown',
-    userAgent: req.headers['user-agent'] || 'unknown',
     outcome: 'success',
-  });
+  }));
 
   res.json({
     success: true,
@@ -962,15 +996,13 @@ app.delete('/api/sessions/:sessionId', async (req: Request, res: Response) => {
   clearSessionActivity(sessionId);
   clearCSRFToken(sessionId);
 
-  logAudit({
+  logAudit(buildAuditContext(req, {
     sessionId,
     action: 'SESSION_DELETED',
     resource: 'session',
-    ipAddress: req.ip || 'unknown',
-    userAgent: req.headers['user-agent'] || 'unknown',
     outcome: 'success',
     details: { totalQueries: session.auditCount },
-  });
+  }));
 
   res.json({
     success: true,

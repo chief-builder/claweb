@@ -412,8 +412,8 @@ export async function exchangeCodeForTokens(
 
     const user: AuthenticatedUser = {
       userId: payload.sub,
-      email: payload.user_email || payload.email,
-      name: payload.user_name || payload.name,
+      email: payload.user_email || payload.email || `${payload.client_id}@health-chat.local`,
+      name: payload.user_name || payload.name || 'Healthcare User',
       roles: payload.user_roles || payload.roles || [],
       scopes: payload.scope ? payload.scope.split(' ') : [],
       clientId: payload.client_id,
