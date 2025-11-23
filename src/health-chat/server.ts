@@ -113,7 +113,8 @@ app.use(express.static(publicPath));
  * Session validation middleware
  */
 function validateSession(req: Request, res: Response, next: NextFunction): void {
-  const sessionId = req.body.sessionId || req.params.sessionId;
+  // Safely access sessionId - req.body may be undefined for GET requests
+  const sessionId = req.body?.sessionId || req.params?.sessionId;
 
   if (!sessionId) {
     next();
