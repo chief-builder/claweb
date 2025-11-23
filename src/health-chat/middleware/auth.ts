@@ -49,6 +49,16 @@ export interface HealthChatOAuthConfig {
 }
 
 /**
+ * OAuth token response
+ */
+interface OAuthTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: string;
+}
+
+/**
  * PKCE state storage (in-memory for demo, use Redis in production)
  */
 interface PKCEState {
@@ -390,7 +400,7 @@ export async function exchangeCodeForTokens(
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as OAuthTokenResponse;
 
     // Decode the access token to get user info
     const payload = oauthConfig.jwtService.decodeToken(data.access_token);
@@ -455,7 +465,7 @@ export async function refreshAccessToken(
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as OAuthTokenResponse;
 
     return {
       accessToken: data.access_token,
