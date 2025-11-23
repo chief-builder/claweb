@@ -19,6 +19,7 @@
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
@@ -43,6 +44,22 @@ import {
   clearCSRFToken,
   AccessPurpose,
 } from '../utils/security.js';
+import { JWTService } from '../auth/oauth/jwt.js';
+import {
+  configureHealthChatOAuth,
+  generateAuthorizationParams,
+  validateAuthorizationState,
+  exchangeCodeForTokens,
+  storeTokens,
+  getStoredTokens,
+  clearStoredTokens,
+  getUserFromSession,
+  buildAuthorizationUrl,
+  revokeToken,
+  refreshAccessToken,
+  AuthenticatedUser,
+  AuthenticatedRequest,
+} from './middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,7 +91,29 @@ interface SessionData {
   accessPurpose?: AccessPurpose;
   breakGlassActive: boolean;
   auditCount: number;
+  // OAuth user context
+  user?: AuthenticatedUser;
 }
+
+// OAuth configuration
+const OAUTH_CONFIG = {
+  authServerUrl: process.env.AUTH_SERVER_URL || 'http://localhost:4000',
+  clientId: process.env.OAUTH_CLIENT_ID || 'health-chat-client',
+  redirectUri: process.env.OAUTH_REDIRECT_URI || `http://localhost:${PORT}/auth/callback`,
+  scopes: ['openid', 'profile', 'email', 'healthcare:read', 'healthcare:write'],
+};
+
+// Initialize JWT service for token validation
+const jwtService = new JWTService({
+  issuer: OAUTH_CONFIG.authServerUrl,
+});
+
+// Configure OAuth (will be fully initialized after server starts)
+configureHealthChatOAuth({
+  ...OAUTH_CONFIG,
+  jwtService,
+  requireAuth: process.env.REQUIRE_AUTH === 'true',
+});
 
 const sessions = new Map<string, SessionData>();
 
@@ -83,6 +122,7 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || true,
   credentials: true,
 }));
+app.use(cookieParser());
 app.use(express.json({ limit: '100kb' })); // Limit request body size
 app.use(securityHeaders());
 app.use(requestLogger());
@@ -108,6 +148,302 @@ app.get('/', (_req: Request, res: Response) => {
 
 // Serve static files from public/health-chat
 app.use(express.static(publicPath));
+
+// ============================================================================
+// OAuth Authentication Routes
+// ============================================================================
+
+/**
+ * Initiate OAuth login flow
+ */
+app.get('/auth/login', (req: Request, res: Response) => {
+  try {
+    const params = generateAuthorizationParams();
+
+    logAudit({
+      sessionId: 'auth',
+      action: 'LOGIN_INITIATED',
+      resource: 'auth',
+      ipAddress: req.ip || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown',
+      outcome: 'success',
+      details: { state: params.state.substring(0, 8) + '...' },
+    });
+
+    const authUrl = buildAuthorizationUrl(
+      params.state,
+      params.codeChallenge,
+      params.codeChallengeMethod
+    );
+
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error('[Auth] Login initiation error:', error);
+    res.redirect('/?error=login_failed');
+  }
+});
+
+/**
+ * OAuth callback handler
+ */
+app.get('/auth/callback', async (req: Request, res: Response) => {
+  const { code, state, error, error_description } = req.query;
+
+  // Handle OAuth errors
+  if (error) {
+    logAudit({
+      sessionId: 'auth',
+      action: 'LOGIN_FAILED',
+      resource: 'auth',
+      ipAddress: req.ip || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown',
+      outcome: 'failure',
+      details: { error, error_description },
+    });
+
+    return res.redirect(`/?error=${encodeURIComponent(String(error))}`);
+  }
+
+  if (!code || !state) {
+    return res.redirect('/?error=invalid_callback');
+  }
+
+  // Validate state and get PKCE verifier
+  const pkceState = validateAuthorizationState(String(state));
+  if (!pkceState) {
+    logAudit({
+      sessionId: 'auth',
+      action: 'LOGIN_FAILED',
+      resource: 'auth',
+      ipAddress: req.ip || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown',
+      outcome: 'failure',
+      details: { reason: 'Invalid or expired state' },
+    });
+
+    return res.redirect('/?error=invalid_state');
+  }
+
+  try {
+    // Exchange code for tokens
+    const tokens = await exchangeCodeForTokens(String(code), pkceState.codeVerifier);
+
+    if (!tokens) {
+      logAudit({
+        sessionId: 'auth',
+        action: 'LOGIN_FAILED',
+        resource: 'auth',
+        ipAddress: req.ip || 'unknown',
+        userAgent: req.headers['user-agent'] || 'unknown',
+        outcome: 'failure',
+        details: { reason: 'Token exchange failed' },
+      });
+
+      return res.redirect('/?error=token_exchange_failed');
+    }
+
+    // Create a session for the authenticated user
+    const sessionId = generateSessionId();
+    storeTokens(sessionId, tokens.accessToken, tokens.refreshToken, tokens.user, tokens.expiresIn);
+
+    logAudit({
+      sessionId,
+      userId: tokens.user.userId,
+      action: 'USER_LOGIN',
+      resource: 'auth',
+      ipAddress: req.ip || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown',
+      outcome: 'success',
+      details: {
+        userEmail: tokens.user.email,
+        userName: tokens.user.name,
+        authMethod: 'oauth',
+      },
+    });
+
+    // Set httpOnly cookie with session ID for security
+    res.cookie('health_chat_session', sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: tokens.expiresIn * 1000,
+    });
+
+    // Also set a non-httpOnly cookie with user info for frontend display
+    res.cookie('health_chat_user', JSON.stringify({
+      userId: tokens.user.userId,
+      email: tokens.user.email,
+      name: tokens.user.name,
+      roles: tokens.user.roles,
+    }), {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: tokens.expiresIn * 1000,
+    });
+
+    res.redirect('/?login=success');
+  } catch (error) {
+    console.error('[Auth] Callback error:', error);
+    res.redirect('/?error=callback_failed');
+  }
+});
+
+/**
+ * Logout endpoint
+ */
+app.post('/auth/logout', async (req: Request, res: Response) => {
+  const sessionId = req.cookies?.health_chat_session;
+
+  if (sessionId) {
+    const storedTokens = getStoredTokens(sessionId);
+
+    if (storedTokens) {
+      // Revoke tokens on auth server
+      await revokeToken(storedTokens.accessToken);
+      if (storedTokens.refreshToken) {
+        await revokeToken(storedTokens.refreshToken);
+      }
+
+      logAudit({
+        sessionId,
+        userId: storedTokens.user.userId,
+        action: 'USER_LOGOUT',
+        resource: 'auth',
+        ipAddress: req.ip || 'unknown',
+        userAgent: req.headers['user-agent'] || 'unknown',
+        outcome: 'success',
+        details: {
+          userEmail: storedTokens.user.email,
+          userName: storedTokens.user.name,
+        },
+      });
+    }
+
+    clearStoredTokens(sessionId);
+  }
+
+  // Clear cookies
+  res.clearCookie('health_chat_session');
+  res.clearCookie('health_chat_user');
+  res.clearCookie('health_chat_token');
+
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+/**
+ * Get current user info
+ */
+app.get('/auth/me', (req: Request, res: Response) => {
+  const sessionId = req.cookies?.health_chat_session;
+
+  if (!sessionId) {
+    return res.json({
+      authenticated: false,
+      user: null,
+    });
+  }
+
+  const user = getUserFromSession(sessionId);
+
+  if (!user) {
+    return res.json({
+      authenticated: false,
+      user: null,
+    });
+  }
+
+  res.json({
+    authenticated: true,
+    user: {
+      userId: user.userId,
+      email: user.email,
+      name: user.name,
+      roles: user.roles,
+      scopes: user.scopes,
+    },
+  });
+});
+
+/**
+ * Refresh access token
+ */
+app.post('/auth/refresh', async (req: Request, res: Response) => {
+  const sessionId = req.cookies?.health_chat_session;
+
+  if (!sessionId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const storedTokens = getStoredTokens(sessionId);
+
+  if (!storedTokens || !storedTokens.refreshToken) {
+    return res.status(401).json({ error: 'No refresh token available' });
+  }
+
+  try {
+    const newTokens = await refreshAccessToken(storedTokens.refreshToken);
+
+    if (!newTokens) {
+      clearStoredTokens(sessionId);
+      res.clearCookie('health_chat_session');
+      res.clearCookie('health_chat_user');
+      return res.status(401).json({ error: 'Token refresh failed' });
+    }
+
+    // Update stored tokens
+    storeTokens(
+      sessionId,
+      newTokens.accessToken,
+      newTokens.refreshToken || storedTokens.refreshToken,
+      storedTokens.user,
+      newTokens.expiresIn
+    );
+
+    logAudit({
+      sessionId,
+      userId: storedTokens.user.userId,
+      action: 'TOKEN_REFRESH',
+      resource: 'auth',
+      ipAddress: req.ip || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown',
+      outcome: 'success',
+    });
+
+    // Update cookie expiration
+    res.cookie('health_chat_session', sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: newTokens.expiresIn * 1000,
+    });
+
+    res.json({
+      success: true,
+      expiresIn: newTokens.expiresIn,
+    });
+  } catch (error) {
+    console.error('[Auth] Token refresh error:', error);
+    res.status(500).json({ error: 'Token refresh failed' });
+  }
+});
+
+/**
+ * OAuth configuration info (for frontend)
+ */
+app.get('/auth/config', (_req: Request, res: Response) => {
+  res.json({
+    authEnabled: true,
+    loginUrl: '/auth/login',
+    logoutUrl: '/auth/logout',
+    userInfoUrl: '/auth/me',
+    authServerUrl: OAUTH_CONFIG.authServerUrl,
+  });
+});
+
+// ============================================================================
+// Session Management
+// ============================================================================
 
 /**
  * Session validation middleware
@@ -661,7 +997,15 @@ app.listen(PORT, () => {
   console.log(`   ✓ CSRF Protection`);
   console.log(`   ✓ Session Timeout (${SESSION_CONFIG.idleTimeoutMs / 60000} min idle)`);
   console.log(`   ✓ HIPAA Audit Logging`);
-  console.log(`\n📋 Available endpoints:`);
+  console.log(`   ✓ OAuth 2.0 + PKCE Authentication`);
+  console.log(`\n🔐 OAuth Authentication endpoints:`);
+  console.log(`   GET    /auth/login                 - Initiate OAuth login`);
+  console.log(`   GET    /auth/callback              - OAuth callback handler`);
+  console.log(`   POST   /auth/logout                - Logout and revoke tokens`);
+  console.log(`   GET    /auth/me                    - Get current user info`);
+  console.log(`   POST   /auth/refresh               - Refresh access token`);
+  console.log(`   GET    /auth/config                - OAuth configuration`);
+  console.log(`\n📋 API endpoints:`);
   console.log(`   POST   /api/sessions               - Create new session`);
   console.log(`   POST   /api/sessions/:id/purpose   - Set access purpose`);
   console.log(`   POST   /api/sessions/:id/patient   - Set patient context`);
@@ -671,8 +1015,10 @@ app.listen(PORT, () => {
   console.log(`   POST   /api/sessions/:id/reset     - Reset conversation`);
   console.log(`   DELETE /api/sessions/:id           - Delete session`);
   console.log(`   GET    /api/health                 - Health check`);
-  console.log(`\n🔑 Required environment variables:`);
-  console.log(`   ANTHROPIC_API_KEY - Claude API key`);
+  console.log(`\n🔑 Environment variables:`);
+  console.log(`   ANTHROPIC_API_KEY   - Claude API key (required)`);
+  console.log(`   AUTH_SERVER_URL     - OAuth server URL (default: http://localhost:4000)`);
+  console.log(`   OAUTH_CLIENT_ID     - OAuth client ID (default: health-chat-client)`);
   console.log(`\n🎨 UI Theme: Earthy Tones (#D7CCC8 → #795548)`);
   console.log('');
 });

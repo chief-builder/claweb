@@ -38,8 +38,25 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
       background: linear-gradient(135deg, var(--earthy-soft) 0%, var(--earthy-light) 50%, var(--earthy-medium) 100%);
+      background-attachment: fixed;
       min-height: 100vh;
       color: var(--earthy-text);
+    }
+
+    /* Subtle animated background pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image:
+        radial-gradient(circle at 20% 80%, rgba(121, 85, 72, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(161, 136, 127, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(188, 170, 164, 0.06) 0%, transparent 40%);
+      pointer-events: none;
+      z-index: -1;
     }
 
     .app-container {
@@ -61,6 +78,22 @@
       display: flex;
       flex-direction: column;
       gap: 20px;
+      box-shadow: 0 8px 32px rgba(93, 64, 55, 0.3);
+      backdrop-filter: blur(4px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Decorative sidebar accent */
+    .sidebar::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%);
+      pointer-events: none;
     }
 
     .sidebar h1 {
@@ -264,8 +297,9 @@
       border-radius: 16px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
       overflow: hidden;
+      border: 1px solid rgba(188, 170, 164, 0.2);
     }
 
     .messages-container {
@@ -297,13 +331,16 @@
       background: linear-gradient(135deg, var(--earthy-dark) 0%, var(--earthy-rich) 100%);
       color: var(--white);
       border-bottom-right-radius: 4px;
+      box-shadow: 0 2px 8px rgba(121, 85, 72, 0.25);
     }
 
     .message.assistant {
       align-self: flex-start;
-      background: var(--earthy-soft);
+      background: linear-gradient(135deg, var(--earthy-soft) 0%, #E8E0DC 100%);
       color: var(--earthy-text);
       border-bottom-left-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(188, 170, 164, 0.2);
     }
 
     .message.system {
@@ -425,13 +462,35 @@
       padding: 14px 28px;
       border-radius: 12px;
       font-size: 1rem;
+      font-weight: 500;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .send-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: left 0.5s;
     }
 
     .send-btn:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(121, 85, 72, 0.3);
+      box-shadow: 0 6px 20px rgba(121, 85, 72, 0.35);
+    }
+
+    .send-btn:hover::before {
+      left: 100%;
+    }
+
+    .send-btn:active {
+      transform: translateY(0);
     }
 
     .send-btn:disabled {
@@ -584,6 +643,229 @@
       background: #B71C1C;
     }
 
+    /* User Authentication Section */
+    .user-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 15px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--earthy-medium) 0%, var(--earthy-dark) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--white);
+      text-transform: uppercase;
+    }
+
+    .user-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-email {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .auth-btn {
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      font-weight: 500;
+    }
+
+    .login-btn {
+      background: linear-gradient(135deg, var(--earthy-light) 0%, var(--earthy-medium) 100%);
+      color: var(--white);
+      width: 100%;
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .logout-btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--white);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Authentication Status Badge */
+    .auth-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .auth-status.authenticated {
+      background: rgba(129, 199, 132, 0.2);
+      color: #81C784;
+    }
+
+    .auth-status.anonymous {
+      background: rgba(255, 171, 145, 0.2);
+      color: #FFAB91;
+    }
+
+    .auth-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Login Prompt Banner */
+    .login-prompt {
+      background: linear-gradient(135deg, var(--earthy-soft) 0%, var(--earthy-light) 100%);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      color: var(--earthy-text);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .login-prompt h3 {
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+    }
+
+    .login-prompt p {
+      font-size: 0.9rem;
+      margin-bottom: 15px;
+      opacity: 0.8;
+    }
+
+    .login-prompt .login-btn {
+      background: linear-gradient(135deg, var(--earthy-dark) 0%, var(--earthy-rich) 100%);
+      display: inline-block;
+      padding: 12px 30px;
+    }
+
+    /* Enhanced Header with User Info */
+    .chat-header {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .header-user-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--earthy-soft);
+      border-radius: 20px;
+      font-size: 0.85rem;
+    }
+
+    .header-user-badge .user-avatar-small {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--earthy-medium) 0%, var(--earthy-dark) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.7rem;
+      color: var(--white);
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      padding: 14px 20px;
+      border-radius: 10px;
+      background: var(--white);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideIn 0.3s ease;
+      max-width: 350px;
+    }
+
+    .toast.success {
+      border-left: 4px solid var(--success);
+    }
+
+    .toast.error {
+      border-left: 4px solid var(--danger);
+    }
+
+    .toast.info {
+      border-left: 4px solid var(--info);
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+
+    .toast.hiding {
+      animation: slideOut 0.3s ease forwards;
+    }
+
     /* Responsive */
     @media (max-width: 900px) {
       .app-container {
@@ -601,10 +883,17 @@
       .messages-container {
         max-height: 400px;
       }
+
+      .header-user-badge {
+        display: none;
+      }
     }
   </style>
 </head>
 <body>
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
   <div class="app-container">
     <!-- Sidebar -->
     <aside class="sidebar">
@@ -612,6 +901,11 @@
         <span>&#x1F3E5;</span>
         Healthcare Assistant
       </h1>
+
+      <!-- User Authentication Section -->
+      <div id="user-section">
+        <!-- Will be populated by JavaScript -->
+      </div>
 
       <div class="hipaa-banner" id="hipaa-banner">
         <span>&#x1F512;</span>
@@ -660,9 +954,15 @@
     <!-- Main Content -->
     <main class="main-content">
       <header class="chat-header">
-        <div class="status-indicator">
-          <span class="status-dot" id="status-dot"></span>
-          <span id="status-text">Connecting...</span>
+        <div class="header-left">
+          <div class="status-indicator">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-text">Connecting...</span>
+          </div>
+          <div class="header-user-badge" id="header-user-badge" style="display: none;">
+            <div class="user-avatar-small" id="header-user-initials">?</div>
+            <span id="header-user-name">Guest</span>
+          </div>
         </div>
         <div class="header-actions">
           <button class="header-btn" id="audit-btn">View Audit Log</button>
@@ -762,6 +1062,9 @@
       breakGlassActive: false,
       isConnected: false,
       isLoading: false,
+      // Authentication state
+      isAuthenticated: false,
+      user: null,
     };
 
     // DOM Elements
@@ -790,14 +1093,186 @@
       auditEntries: document.getElementById('audit-entries'),
       suggestedQueries: document.querySelectorAll('.suggested-query'),
       hipaaBanner: document.getElementById('hipaa-banner'),
+      // Auth elements
+      userSection: document.getElementById('user-section'),
+      headerUserBadge: document.getElementById('header-user-badge'),
+      headerUserInitials: document.getElementById('header-user-initials'),
+      headerUserName: document.getElementById('header-user-name'),
+      toastContainer: document.getElementById('toast-container'),
     };
 
     // API Base URL
     const API_BASE = '/api';
 
+    // ============================================================================
+    // Toast Notifications
+    // ============================================================================
+    function showToast(message, type = 'info', duration = 4000) {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `
+        <span>${type === 'success' ? '&#x2705;' : type === 'error' ? '&#x274C;' : '&#x2139;&#xFE0F;'}</span>
+        <span>${message}</span>
+      `;
+      elements.toastContainer.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    }
+
+    // ============================================================================
+    // Authentication Functions
+    // ============================================================================
+
+    // Get user initials from name or email
+    function getUserInitials(user) {
+      if (user.name) {
+        const parts = user.name.split(' ');
+        if (parts.length >= 2) {
+          return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+        return user.name.substring(0, 2).toUpperCase();
+      }
+      if (user.email) {
+        return user.email.substring(0, 2).toUpperCase();
+      }
+      return '?';
+    }
+
+    // Update user section UI
+    function updateUserSection() {
+      if (state.isAuthenticated && state.user) {
+        const initials = getUserInitials(state.user);
+        elements.userSection.innerHTML = `
+          <div class="user-section">
+            <div class="user-avatar">${initials}</div>
+            <div class="user-info">
+              <div class="user-name">${state.user.name || 'User'}</div>
+              <div class="user-email">${state.user.email || ''}</div>
+            </div>
+            <button class="auth-btn logout-btn" onclick="handleLogout()">Logout</button>
+          </div>
+          <div class="auth-status authenticated">
+            <span class="auth-status-dot"></span>
+            <span>Authenticated</span>
+          </div>
+        `;
+
+        // Update header badge
+        elements.headerUserBadge.style.display = 'flex';
+        elements.headerUserInitials.textContent = initials;
+        elements.headerUserName.textContent = state.user.name || state.user.email || 'User';
+      } else {
+        elements.userSection.innerHTML = `
+          <div class="auth-status anonymous">
+            <span class="auth-status-dot"></span>
+            <span>Not logged in</span>
+          </div>
+          <button class="auth-btn login-btn" onclick="handleLogin()">
+            <span>&#x1F511;</span> Sign In
+          </button>
+        `;
+
+        // Hide header badge
+        elements.headerUserBadge.style.display = 'none';
+      }
+    }
+
+    // Check authentication status
+    async function checkAuthStatus() {
+      try {
+        const response = await fetch('/auth/me', { credentials: 'include' });
+        const data = await response.json();
+
+        state.isAuthenticated = data.authenticated;
+        state.user = data.user;
+
+        updateUserSection();
+
+        // Check URL for login status
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('login') === 'success') {
+          showToast('Successfully logged in!', 'success');
+          // Clean up URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        if (urlParams.get('error')) {
+          showToast(`Login error: ${urlParams.get('error')}`, 'error');
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        return data.authenticated;
+      } catch (error) {
+        console.error('Auth check error:', error);
+        state.isAuthenticated = false;
+        state.user = null;
+        updateUserSection();
+        return false;
+      }
+    }
+
+    // Handle login
+    function handleLogin() {
+      window.location.href = '/auth/login';
+    }
+
+    // Handle logout
+    async function handleLogout() {
+      try {
+        const response = await fetch('/auth/logout', {
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          state.isAuthenticated = false;
+          state.user = null;
+          updateUserSection();
+          showToast('Successfully logged out', 'success');
+        } else {
+          throw new Error('Logout failed');
+        }
+      } catch (error) {
+        console.error('Logout error:', error);
+        showToast('Logout failed', 'error');
+      }
+    }
+
+    // Refresh token before expiration
+    async function refreshToken() {
+      try {
+        const response = await fetch('/auth/refresh', {
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          // Token refresh failed, user needs to re-login
+          state.isAuthenticated = false;
+          state.user = null;
+          updateUserSection();
+          showToast('Session expired. Please log in again.', 'info');
+        }
+      } catch (error) {
+        console.error('Token refresh error:', error);
+      }
+    }
+
+    // Set up automatic token refresh (every 45 minutes)
+    setInterval(refreshToken, 45 * 60 * 1000);
+
+    // ============================================================================
+    // Application Initialization
+    // ============================================================================
+
     // Initialize the application
     async function init() {
       try {
+        // Check authentication status first
+        await checkAuthStatus();
+
         updateStatus('connecting');
         const response = await fetch(`${API_BASE}/sessions`, { method: 'POST' });
 
@@ -816,7 +1291,12 @@
         elements.breakGlassBtn.disabled = false;
         elements.resetBtn.disabled = false;
 
-        addMessage('system', `Session created. Timeout: ${data.timeoutMinutes} minutes of inactivity.`);
+        // Personalized welcome message
+        if (state.isAuthenticated && state.user) {
+          addMessage('system', `Welcome back, ${state.user.name || state.user.email}! Session created. Timeout: ${data.timeoutMinutes} minutes of inactivity.`);
+        } else {
+          addMessage('system', `Session created. Timeout: ${data.timeoutMinutes} minutes of inactivity. Sign in for enhanced features.`);
+        }
       } catch (error) {
         console.error('Init error:', error);
         updateStatus('error');
