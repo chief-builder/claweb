@@ -115,6 +115,51 @@ configureHealthChatOAuth({
   requireAuth: process.env.REQUIRE_AUTH === 'true',
 });
 
+/**
+ * Register health-chat as an OAuth client with the authorization server
+ */
+async function registerOAuthClient(): Promise<boolean> {
+  try {
+    const response = await fetch(`${OAUTH_CONFIG.authServerUrl}/oauth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_name: 'Health Chat Application',
+        redirect_uris: [OAUTH_CONFIG.redirectUri],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none', // Public client (browser app)
+        scope: OAUTH_CONFIG.scopes.join(' '),
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json() as { client_id: string };
+      console.log(`[OAuth] Client registered successfully: ${data.client_id}`);
+      // Update config with the registered client ID if different
+      if (data.client_id !== OAUTH_CONFIG.clientId) {
+        OAUTH_CONFIG.clientId = data.client_id;
+        configureHealthChatOAuth({
+          ...OAUTH_CONFIG,
+          jwtService,
+          requireAuth: process.env.REQUIRE_AUTH === 'true',
+        });
+      }
+      return true;
+    } else {
+      const error = await response.text();
+      console.error(`[OAuth] Client registration failed: ${error}`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`[OAuth] Could not connect to auth server: ${error}`);
+    console.log(`[OAuth] Health-chat will work without OAuth. Start auth server at ${OAUTH_CONFIG.authServerUrl} for authentication.`);
+    return false;
+  }
+}
+
 const sessions = new Map<string, SessionData>();
 
 // Middleware
@@ -988,7 +1033,7 @@ app.use((_req: Request, res: Response) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n🏥 Healthcare Chat Server started on http://localhost:${PORT}`);
   console.log(`\n📋 Security Features Enabled:`);
   console.log(`   ✓ Content Security Policy`);
@@ -998,6 +1043,16 @@ app.listen(PORT, () => {
   console.log(`   ✓ Session Timeout (${SESSION_CONFIG.idleTimeoutMs / 60000} min idle)`);
   console.log(`   ✓ HIPAA Audit Logging`);
   console.log(`   ✓ OAuth 2.0 + PKCE Authentication`);
+
+  // Register OAuth client with authorization server
+  console.log(`\n🔐 Registering OAuth client with ${OAUTH_CONFIG.authServerUrl}...`);
+  const registered = await registerOAuthClient();
+  if (registered) {
+    console.log(`   ✓ OAuth client registered (redirect: ${OAUTH_CONFIG.redirectUri})`);
+  } else {
+    console.log(`   ⚠ OAuth registration skipped (auth server not available)`);
+  }
+
   console.log(`\n🔐 OAuth Authentication endpoints:`);
   console.log(`   GET    /auth/login                 - Initiate OAuth login`);
   console.log(`   GET    /auth/callback              - OAuth callback handler`);
